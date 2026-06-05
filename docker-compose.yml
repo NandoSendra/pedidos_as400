@@ -1,0 +1,9 @@
+services:
+  pedidos:
+    build: .
+    container_name: pedidos-as400
+    ports:
+      - "${FLASK_PORT:-5100}:5100"
+    env_file:
+      - .env
+    restart: unless-stopped

@@ -1,0 +1,16 @@
+[Unit]
+Description=Pedidos AS400 Flask app
+After=network.target
+
+[Service]
+Type=simple
+User=pedidos
+Group=pedidos
+WorkingDirectory=/opt/pedidos_as400
+EnvironmentFile=/opt/pedidos_as400/.env
+ExecStart=/opt/pedidos_as400/venv/bin/gunicorn --bind 127.0.0.1:5100 --workers 2 --timeout 60 wsgi:app
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

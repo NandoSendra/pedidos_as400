@@ -1,0 +1,17 @@
+services:
+  pedidos:
+    build: .
+    container_name: pedidos-as400-dev
+    ports:
+      - "${FLASK_PORT:-5100}:5100"
+    env_file:
+      - .env
+    environment:
+      FLASK_DEBUG: "true"
+    volumes:
+      - ./app.py:/app/app.py
+      - ./as400_api.py:/app/as400_api.py
+      - ./config.py:/app/config.py
+      - ./templates:/app/templates
+      - ./static:/app/static
+    command: python app.py

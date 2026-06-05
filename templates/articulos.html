@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>Artículos disponibles</h2>
+
+{% if error %}
+<div class="error-box">
+    {{ error }}
+</div>
+{% endif %}
+
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem;">
+
+    {% for articulo in articulos %}
+
+    <div style="background: white; padding: 1rem; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.06);">
+
+        <h3>{{ articulo.descripcion }}</h3>
+
+        <p>Código: {{ articulo.codigo }}</p>
+        <p>Stock: {{ articulo.stock }}</p>
+
+        <p><strong>{{ "%.2f"|format(articulo.precio) }} €</strong></p>
+
+        <form action="{{ url_for('agregar_carrito') }}" method="POST">
+            <input type="hidden" name="codigo" value="{{ articulo.codigo }}">
+
+            <input type="number" name="cantidad" min="1" value="1" required style="width: 80px;">
+
+            <button type="submit">Añadir</button>
+        </form>
+
+    </div>
+
+    {% else %}
+
+    <p>No hay artículos disponibles.</p>
+
+    {% endfor %}
+
+</div>
+
+{% endblock %}

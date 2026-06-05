@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div style="background: white; padding: 2rem; border-radius: 16px; margin-top: 2rem;">
+    <h2>Pedido confirmado</h2>
+
+    <p>El pedido se ha creado correctamente en el AS/400.</p>
+
+    {% if resultado.numero_pedido %}
+    <p>
+        Número de pedido:
+        <strong>{{ resultado.numero_pedido }}</strong>
+    </p>
+    {% endif %}
+
+    {% if resultado.mensaje %}
+    <p>{{ resultado.mensaje }}</p>
+    {% endif %}
+
+    <a href="{{ url_for('articulos') }}">Hacer otro pedido</a>
+</div>
+
+{% endblock %}

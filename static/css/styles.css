@@ -1,0 +1,187 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: system-ui, Arial, sans-serif;
+    background: #f4f6f8;
+    color: #1f2937;
+}
+
+.container {
+    width: min(1200px, 92%);
+    margin: 0 auto;
+}
+
+.header {
+    background: #1e7883;
+    color: white;
+    padding: 1rem 0;
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header h1 {
+    margin: 0;
+    font-size: 1.4rem;
+}
+
+.header nav {
+    display: flex;
+    gap: 1rem;
+}
+
+.header a {
+    color: white;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.page-title {
+    margin: 2rem 0 1rem;
+}
+
+.page-title h2 {
+    margin-bottom: .3rem;
+}
+
+.articulos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+}
+
+.articulo-card {
+    background: white;
+    border-radius: 14px;
+    padding: 1rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .06);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 190px;
+}
+
+.articulo-card h3 {
+    margin-top: 0;
+    margin-bottom: .5rem;
+}
+
+.codigo,
+.stock {
+    color: #6b7280;
+    font-size: .9rem;
+}
+
+.articulo-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: .7rem;
+    margin-top: 1rem;
+}
+
+.form-agregar {
+    display: flex;
+    gap: .5rem;
+}
+
+input {
+    padding: .55rem;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+}
+
+.form-agregar input {
+    width: 70px;
+}
+
+button,
+.btn-link {
+    background: #ee7256;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: .6rem .9rem;
+    cursor: pointer;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-block;
+}
+
+button:hover,
+.btn-link:hover {
+    opacity: .9;
+}
+
+.btn-danger {
+    background: #b91c1c;
+}
+
+.tabla-carrito {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.tabla-carrito th,
+.tabla-carrito td {
+    padding: .8rem;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: left;
+}
+
+.tabla-carrito th {
+    background: #eef2f7;
+}
+
+.total-carrito {
+    margin: 1.5rem 0;
+    font-size: 1.3rem;
+    text-align: right;
+}
+
+.form-confirmar {
+    background: white;
+    padding: 1rem;
+    border-radius: 12px;
+    display: grid;
+    gap: .7rem;
+    max-width: 400px;
+    margin-left: auto;
+}
+
+.messages {
+    margin-top: 1rem;
+}
+
+.message {
+    padding: .8rem 1rem;
+    border-radius: 8px;
+    margin-bottom: .5rem;
+}
+
+.message.success {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.message.error {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.pedido-confirmado {
+    background: white;
+    padding: 2rem;
+    border-radius: 16px;
+    margin-top: 2rem;
+    text-align: center;
+}

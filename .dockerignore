@@ -1,0 +1,16 @@
+.env
+.env.*
+deploy/local.env
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.git/
+.gitignore
+.DS_Store
+*.log
+.pytest_cache/
+requirements.txt
+as400_api copy.py
+iseries_api_c.py
+FLASK_SECRET_KEY=clave_desarrollo

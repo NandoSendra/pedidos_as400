@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>Carrito</h2>
+
+{% if carrito %}
+
+<table style="width: 100%; background: white; border-collapse: collapse;">
+    <thead>
+        <tr>
+            <th style="padding: .8rem; text-align: left;">Código</th>
+            <th style="padding: .8rem; text-align: left;">Artículo</th>
+            <th style="padding: .8rem; text-align: left;">Cantidad</th>
+            <th style="padding: .8rem; text-align: left;">Precio</th>
+            <th style="padding: .8rem; text-align: left;">Importe</th>
+            <th style="padding: .8rem;"></th>
+        </tr>
+    </thead>
+
+    <tbody>
+        {% for item in carrito %}
+        <tr>
+            <td style="padding: .8rem;">{{ item.codigo }}</td>
+            <td style="padding: .8rem;">{{ item.descripcion }}</td>
+            <td style="padding: .8rem;">{{ item.cantidad }}</td>
+            <td style="padding: .8rem;">{{ "%.2f"|format(item.precio) }} €</td>
+            <td style="padding: .8rem;">{{ "%.2f"|format(item.precio * item.cantidad) }} €</td>
+            <td style="padding: .8rem;">
+                <form action="{{ url_for('eliminar_carrito', codigo=item.codigo) }}" method="POST">
+                    <button type="submit">Eliminar</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3 style="text-align: right;">Total: {{ "%.2f"|format(total) }} €</h3>
+
+<form action="{{ url_for('confirmar_pedido') }}" method="POST"
+    style="background: white; padding: 1rem; border-radius: 12px; max-width: 400px; margin-left: auto;">
+    <label for="cliente_codigo">Código de cliente</label>
+
+    <input type="text" id="cliente_codigo" name="cliente_codigo" required style="width: 100%; margin: .5rem 0 1rem;">
+
+    <button type="submit">Confirmar pedido</button>
+</form>
+
+{% else %}
+
+<p>El carrito está vacío.</p>
+
+{% endif %}
+
+{% endblock %}
