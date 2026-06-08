@@ -29,6 +29,10 @@ def _normalizar_articulo(articulo):
     if articulo.get("precio") is None:
         articulo["precio"] = 0
 
+    for campo in ("stockotros", "reservado", "pendiente"):
+        if articulo.get(campo) is None:
+            articulo[campo] = 0
+
     articulo["fecha_ultimo"] = _normalizar_fecha_as400(
         articulo.get("fecha_ultimo")
     )

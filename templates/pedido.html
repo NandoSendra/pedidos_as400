@@ -24,9 +24,47 @@
             padding: 1rem 1.5rem;
         }
 
+        .header-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
         header h1 {
             margin: 0;
             font-size: 1.4rem;
+        }
+
+        .header-cobertura {
+            display: flex;
+            align-items: center;
+            gap: .65rem;
+            background: rgba(255, 255, 255, .18);
+            padding: .55rem .9rem;
+            border-radius: 12px;
+            font-size: .95rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .header-cobertura input {
+            width: 76px;
+            padding: .5rem .55rem;
+            border: 2px solid rgba(255, 255, 255, .5);
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 700;
+            text-align: center;
+            color: #1e7883;
+            background: white;
+        }
+
+        .header-cobertura input:focus {
+            outline: none;
+            border-color: white;
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, .25);
         }
 
         .proveedor-bar {
@@ -524,7 +562,13 @@
 <body>
 
     <header>
-        <h1>Pedido rápido</h1>
+        <div class="header-inner">
+            <h1>Pedido rápido</h1>
+            <label class="header-cobertura" for="coberturaDias">
+                Cobertura (días)
+                <input type="number" id="coberturaDias" min="1" step="1" value="30" inputmode="numeric" title="Días de stock a cubrir con el pedido">
+            </label>
+        </div>
     </header>
 
     {% if error %}
@@ -639,6 +683,7 @@
         const filtroDiasSinComprar = document.getElementById("filtroDiasSinComprar");
         const filtroSinStock = document.getElementById("filtroSinStock");
         const filtroCantidadAlta = document.getElementById("filtroCantidadAlta");
+        const coberturaDias = document.getElementById("coberturaDias");
 
         let proveedorSeleccionado = null;
         let cargandoArticulos = false;
@@ -698,11 +743,13 @@
             const familia = articulo.familia || "Sin familia";
             const precio = Number(articulo.precio || 0);
             const stock = articulo.stock ?? 0;
+            const stockOtros = articulo.stockotros ?? 0;
+            const reservado = articulo.reservado ?? 0;
+            const pendiente = articulo.pendiente ?? 0;
             const consumoDiario = articulo.Consumo_Diario ?? 0;
             const cantidadUltimo = articulo.cantidad_ultimo ?? 0;
             const fechaUltimo = articulo.fecha_ultimo || "";
             const fechaUltimoConsumo = articulo.fecha_ultimo_consumo || "";
-            const diasAnalisis = articulo.dias_analisis ?? 30;
             const unidadMedida = articulo.unidadMedida || "";
             const codigoUm = articulo.codigoUm ?? 0;
             const precioHtml = precio > 0
@@ -716,10 +763,12 @@
                     data-familia="${escapeHtml(familia)}"
                     data-precio="${precio}"
                     data-stock="${stock}"
+                    data-stockotros="${stockOtros}"
+                    data-reservado="${reservado}"
+                    data-pendiente="${pendiente}"
                     data-consumo-diario="${consumoDiario}"
                     data-cantidad-ultimo="${cantidadUltimo}"
                     data-fecha-ultimo="${escapeHtml(fechaUltimo)}"
-                    data-dias-analisis="${diasAnalisis}"
                     data-fecha-ultimo-consumo="${escapeHtml(fechaUltimoConsumo)}"
                     data-unidad-medida="${escapeHtml(unidadMedida)}"
                     data-codigo-um="${codigoUm}">
@@ -736,6 +785,18 @@
                                     Stock:
                                     <strong>${formatearStock(stock)}</strong>
                                     ${escapeHtml(unidadMedida)}
+                                </span>
+                                <span>
+                                    Otros:
+                                    <strong>${formatearStock(stockOtros)}</strong>
+                                </span>
+                                <span>
+                                    Reservado:
+                                    <strong>${formatearStock(reservado)}</strong>
+                                </span>
+                                <span>
+                                    Pendiente:
+                                    <strong>${formatearStock(pendiente)}</strong>
                                 </span>
                             </div>
 
@@ -754,11 +815,6 @@
                                         ${fechaUltimoConsumo ? escapeHtml(fechaUltimoConsumo) : "Sin registro"}
                                     </span>
                                     <span class="dias-desde-ultimo-consumo-texto" data-fecha="${escapeHtml(fechaUltimoConsumo)}"></span>
-                                </span>
-
-                                <span>
-                                    Días análisis:
-                                    <strong>${diasAnalisis}</strong>
                                 </span>
                             </div>
 
@@ -1006,17 +1062,67 @@
             });
         }
 
-        function calcularNecesidad(stock, consumoDiario, diasAnalisis = 30) {
-            stock = Number(stock || 0);
-            consumoDiario = Math.round(Number(consumoDiario || 0));
-            diasAnalisis = Number(diasAnalisis || 30);
+        function obtenerDiasCobertura() {
+            const dias = Number(coberturaDias.value || 30);
 
-            return (consumoDiario * diasAnalisis) - stock;
+            return dias > 0 ? dias : 30;
+        }
+
+        function calcularStockEfectivo(stock, reservado, pendiente) {
+            return Number(stock || 0) - Number(reservado || 0) + Number(pendiente || 0);
+        }
+
+        function calcularNecesidad(stockEfectivo, consumoDiario, diasCobertura = 30) {
+            stockEfectivo = Number(stockEfectivo || 0);
+            consumoDiario = Math.round(Number(consumoDiario || 0));
+            diasCobertura = Number(diasCobertura || 30);
+
+            return (consumoDiario * diasCobertura) - stockEfectivo;
+        }
+
+        function calcularNecesidadArticulo(item) {
+            const stockEfectivo = calcularStockEfectivo(
+                item.dataset.stock,
+                item.dataset.reservado,
+                item.dataset.pendiente
+            );
+            const consumoDiario = Math.round(Number(item.dataset.consumoDiario || 0));
+
+            return calcularNecesidad(stockEfectivo, consumoDiario, obtenerDiasCobertura());
+        }
+
+        function calcularCantidadSugerida(stock, reservado, pendiente, consumoDiario) {
+            const necesidad = calcularNecesidad(
+                calcularStockEfectivo(stock, reservado, pendiente),
+                consumoDiario,
+                obtenerDiasCobertura()
+            );
+
+            return necesidad > 0 ? Math.ceil(necesidad) : 1;
+        }
+
+        function recalcularDatosPorCobertura() {
+            Object.values(pedido).forEach(item => {
+                item.cantidad = calcularCantidadSugerida(
+                    item.stock,
+                    item.reservado,
+                    item.pendiente,
+                    item.consumoDiario
+                );
+            });
+
+            inicializarNecesidadMensual();
+            renderPedido();
         }
 
         function esSinStock(item) {
-            const stock = Number(item.dataset.stock || 0);
-            return stock <= 0;
+            const stockEfectivo = calcularStockEfectivo(
+                item.dataset.stock,
+                item.dataset.reservado,
+                item.dataset.pendiente
+            );
+
+            return stockEfectivo <= 0;
         }
 
         function cumpleFiltroNoComprados(item) {
@@ -1036,12 +1142,10 @@
         }
 
         function esCantidadAPedirAlta(item) {
-            const stock = Number(item.dataset.stock || 0);
             const consumoDiario = Math.round(Number(item.dataset.consumoDiario || 0));
             const cantidadUltimo = Number(item.dataset.cantidadUltimo || 0);
-            const diasAnalisis = Number(item.dataset.diasAnalisis || 30);
 
-            const cantidadAPedir = calcularNecesidad(stock, consumoDiario, 30);
+            const cantidadAPedir = calcularNecesidadArticulo(item);
 
             if (cantidadAPedir <= 0) {
                 return false;
@@ -1057,11 +1161,7 @@
             const articulos = document.querySelectorAll(".articulo-item");
 
             articulos.forEach(item => {
-                const stock = Number(item.dataset.stock || 0);
-                const consumoDiario = Math.round(Number(item.dataset.consumoDiario || 0));
-                const diasAnalisis = Number(item.dataset.diasAnalisis || 30);
-
-                const necesidadMensual = calcularNecesidad(stock, consumoDiario, 30);
+                const necesidadMensual = calcularNecesidadArticulo(item);
                 const texto = item.querySelector(".necesidad-mensual-texto");
 
                 if (!texto) {
@@ -1188,23 +1288,26 @@
                 items.forEach(item => {
                     const div = document.createElement("div");
                     div.className = "pedido-item";
+                    const necesidad = calcularNecesidad(
+                        calcularStockEfectivo(item.stock, item.reservado, item.pendiente),
+                        item.consumoDiario,
+                        obtenerDiasCobertura()
+                    );
+                    const textoNecesidad = necesidad > 0
+                        ? `Recomendado pedir: ${Math.ceil(necesidad)} ${item.unidadMedida}`
+                        : "Cobertura suficiente";
 
                     div.innerHTML = `
                         <div class="pedido-item-header">
                             <div>
                                 <h3>${item.descripcion}</h3>
                                 <p>Código: ${item.codigo}</p>
-                                <p>Stock: ${formatearStock(item.stock)} ${item.unidadMedida}</p>
-                                <p>Consumo diario: ${item.consumoDiario} ${item.unidadMedida} · Días análisis: ${item.diasAnalisis}</p>
+                                <p>Stock: ${formatearStock(item.stock)} ${item.unidadMedida} · Otros: ${formatearStock(item.stockOtros)} · Reservado: ${formatearStock(item.reservado)} · Pendiente: ${formatearStock(item.pendiente)}</p>
+                                <p>Consumo diario: ${item.consumoDiario} ${item.unidadMedida} · Cobertura: ${obtenerDiasCobertura()} días</p>
                                 <p>Cantidad última compra: ${item.cantidadUltimo} ${item.unidadMedida}</p>
                                 <p>Fecha última compra: ${formatearFechaAS400(item.fechaUltimo)} ${textoDiasDesdeFecha(item.fechaUltimo)}</p>
                                 <p>Fecha último consumo: ${formatearFechaAS400(item.fechaUltimoConsumo)} ${textoDiasDesdeFecha(item.fechaUltimoConsumo)}</p>
-                                <p>
-                                    ${item.necesidadMensual > 0
-                            ? `Recomendado pedir: ${Math.ceil(item.necesidadMensual)} ${item.unidadMedida}`
-                            : "Cobertura suficiente"
-                        }
-                                </p>
+                                <p>${textoNecesidad}</p>
                             </div>
 
                             <button type="button" class="btn-danger" data-accion="eliminar" data-codigo="${item.codigo}">
@@ -1254,31 +1357,32 @@
             const familia = item.dataset.familia || "";
             const precio = Number(item.dataset.precio || 0);
             const stock = Number(item.dataset.stock || 0);
+            const stockOtros = Number(item.dataset.stockotros || 0);
+            const reservado = Number(item.dataset.reservado || 0);
+            const pendiente = Number(item.dataset.pendiente || 0);
             const consumoDiario = Math.round(Number(item.dataset.consumoDiario || 0));
             const cantidadUltimo = Number(item.dataset.cantidadUltimo || 0);
-            const diasAnalisis = Number(item.dataset.diasAnalisis || 30);
             const fechaUltimo = item.dataset.fechaUltimo || "";
             const fechaUltimoConsumo = item.dataset.fechaUltimoConsumo || "";
             const unidadMedida = item.dataset.unidadMedida || "";
             const codigoUm = Number(item.dataset.codigoUm || 0);
-
-            const necesidadMensual = calcularNecesidad(stock, consumoDiario, 30);
 
             pedido[codigo] = {
                 codigo,
                 descripcion,
                 familia,
                 precio,
-                cantidad: necesidadMensual > 0 ? Math.ceil(necesidadMensual) : 1,
+                cantidad: calcularCantidadSugerida(stock, reservado, pendiente, consumoDiario),
                 stock,
+                stockOtros,
+                reservado,
+                pendiente,
                 consumoDiario,
                 cantidadUltimo,
-                diasAnalisis,
                 fechaUltimo,
                 fechaUltimoConsumo,
                 unidadMedida,
-                codigoUm,
-                necesidadMensual
+                codigoUm
             };
 
             item.style.display = "none";
@@ -1341,6 +1445,9 @@
         filtroDiasSinComprar.addEventListener("input", actualizarListaArticulos);
         filtroSinStock.addEventListener("change", actualizarListaArticulos);
         filtroCantidadAlta.addEventListener("change", actualizarListaArticulos);
+
+        coberturaDias.addEventListener("input", recalcularDatosPorCobertura);
+        coberturaDias.addEventListener("change", recalcularDatosPorCobertura);
 
         proveedorBusqueda.addEventListener("focus", () => {
             renderProveedorDropdown(filtrarProveedores(proveedorBusqueda.value));

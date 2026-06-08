@@ -19,7 +19,7 @@
         <h3>{{ articulo.descripcion }}</h3>
 
         <p>Código: {{ articulo.codigo }}</p>
-        <p>Stock: {{ articulo.stock }}</p>
+        <p>Stock: {{ articulo.stock }} · Otros: {{ articulo.stockotros | default(0) }} · Reservado: {{ articulo.reservado | default(0) }} · Pendiente: {{ articulo.pendiente | default(0) }}</p>
 
         <p><strong>{{ "%.2f"|format(articulo.precio) }} €</strong></p>
 
