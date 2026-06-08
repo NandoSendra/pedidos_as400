@@ -395,10 +395,20 @@
             padding: .4rem .65rem;
         }
 
-        .cantidad {
-            min-width: 32px;
+        .cantidad-input {
+            width: 80px;
+            padding: .45rem .5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
             text-align: center;
             font-weight: 700;
+            font-size: 1rem;
+        }
+
+        .cantidad-input:focus {
+            outline: none;
+            border-color: #1e7883;
+            box-shadow: 0 0 0 3px rgba(30, 120, 131, .15);
         }
 
         .pedido-footer {
@@ -607,7 +617,7 @@
     </div>
 
     <script>
-        const proveedores = {{ proveedores|tojson }};
+        const proveedores = {{ proveedores| tojson }};
         const pedido = {};
 
         const articulosLista = document.getElementById("articulosLista");
@@ -639,6 +649,10 @@
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;")
                 .replace(/"/g, "&quot;");
+        }
+
+        function formatearStock(stock) {
+            return Math.round(Number(stock || 0));
         }
 
         function limpiarPedido() {
@@ -720,7 +734,7 @@
                             <div class="dato-linea">
                                 <span>
                                     Stock:
-                                    <strong>${stock}</strong>
+                                    <strong>${formatearStock(stock)}</strong>
                                     ${escapeHtml(unidadMedida)}
                                 </span>
                             </div>
@@ -1027,7 +1041,7 @@
             const cantidadUltimo = Number(item.dataset.cantidadUltimo || 0);
             const diasAnalisis = Number(item.dataset.diasAnalisis || 30);
 
-            const cantidadAPedir = calcularNecesidad(stock, consumoDiario, diasAnalisis);
+            const cantidadAPedir = calcularNecesidad(stock, consumoDiario, 30);
 
             if (cantidadAPedir <= 0) {
                 return false;
@@ -1047,7 +1061,7 @@
                 const consumoDiario = Math.round(Number(item.dataset.consumoDiario || 0));
                 const diasAnalisis = Number(item.dataset.diasAnalisis || 30);
 
-                const necesidadMensual = calcularNecesidad(stock, consumoDiario, diasAnalisis);
+                const necesidadMensual = calcularNecesidad(stock, consumoDiario, 30);
                 const texto = item.querySelector(".necesidad-mensual-texto");
 
                 if (!texto) {
@@ -1091,6 +1105,40 @@
             });
 
             totalPedido.textContent = `${total.toFixed(2)} €`;
+        }
+
+        function normalizarCantidad(valor) {
+            const texto = String(valor ?? "").trim().replace(",", ".");
+
+            if (!texto) {
+                return null;
+            }
+
+            const cantidad = Number(texto);
+
+            if (Number.isNaN(cantidad) || cantidad <= 0) {
+                return null;
+            }
+
+            return cantidad;
+        }
+
+        function actualizarCantidadPedido(codigo, valor, input) {
+            if (!pedido[codigo]) {
+                return;
+            }
+
+            const cantidad = normalizarCantidad(valor);
+
+            if (cantidad === null) {
+                input.value = pedido[codigo].cantidad;
+                mostrarMensaje("Introduce una cantidad mayor que 0.", "error");
+                return;
+            }
+
+            pedido[codigo].cantidad = cantidad;
+            input.value = cantidad;
+            recalcularTotal();
         }
         function actualizarListaArticulos() {
             const articulos = document.querySelectorAll(".articulo-item");
@@ -1146,7 +1194,7 @@
                             <div>
                                 <h3>${item.descripcion}</h3>
                                 <p>Código: ${item.codigo}</p>
-                                <p>Stock: ${item.stock} ${item.unidadMedida}</p>
+                                <p>Stock: ${formatearStock(item.stock)} ${item.unidadMedida}</p>
                                 <p>Consumo diario: ${item.consumoDiario} ${item.unidadMedida} · Días análisis: ${item.diasAnalisis}</p>
                                 <p>Cantidad última compra: ${item.cantidadUltimo} ${item.unidadMedida}</p>
                                 <p>Fecha última compra: ${formatearFechaAS400(item.fechaUltimo)} ${textoDiasDesdeFecha(item.fechaUltimo)}</p>
@@ -1169,7 +1217,14 @@
                                 -
                             </button>
 
-                            <span class="cantidad">${item.cantidad}</span>
+                            <input type="number"
+                                class="cantidad-input"
+                                data-codigo="${item.codigo}"
+                                value="${item.cantidad}"
+                                min="0.01"
+                                step="1"
+                                inputmode="decimal"
+                                aria-label="Cantidad de ${escapeHtml(item.descripcion)}">
 
                             <button type="button" class="btn-secundario" data-accion="sumar" data-codigo="${item.codigo}">
                                 +
@@ -1207,7 +1262,7 @@
             const unidadMedida = item.dataset.unidadMedida || "";
             const codigoUm = Number(item.dataset.codigoUm || 0);
 
-            const necesidadMensual = calcularNecesidad(stock, consumoDiario, diasAnalisis);
+            const necesidadMensual = calcularNecesidad(stock, consumoDiario, 30);
 
             pedido[codigo] = {
                 codigo,
@@ -1262,6 +1317,23 @@
             }
 
             renderPedido();
+        });
+
+        pedidoLista.addEventListener("change", event => {
+            const input = event.target.closest(".cantidad-input");
+
+            if (!input) {
+                return;
+            }
+
+            actualizarCantidadPedido(input.dataset.codigo, input.value, input);
+        });
+
+        pedidoLista.addEventListener("keydown", event => {
+            if (event.key === "Enter" && event.target.closest(".cantidad-input")) {
+                event.preventDefault();
+                event.target.blur();
+            }
         });
 
         buscador.addEventListener("input", actualizarListaArticulos);
