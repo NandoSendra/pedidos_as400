@@ -95,6 +95,34 @@
             box-shadow: 0 0 0 3px rgba(255, 255, 255, .25);
         }
 
+        .header-fecha-analisis {
+            display: flex;
+            align-items: center;
+            gap: .65rem;
+            background: rgba(255, 255, 255, .18);
+            padding: .55rem .9rem;
+            border-radius: 12px;
+            font-size: .95rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .header-fecha-analisis input {
+            padding: .5rem .55rem;
+            border: 2px solid rgba(255, 255, 255, .5);
+            border-radius: 8px;
+            font-size: .95rem;
+            font-weight: 700;
+            color: #1e7883;
+            background: white;
+        }
+
+        .header-fecha-analisis input:focus {
+            outline: none;
+            border-color: white;
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, .25);
+        }
+
         .header-actions {
             display: flex;
             align-items: center;
@@ -428,11 +456,114 @@
             font-weight: 700;
         }
 
-        .btn-add {
+        .articulo-acciones {
+            display: flex;
+            flex-direction: column;
+            gap: .45rem;
             align-self: center;
+        }
+
+        .btn-add {
             white-space: nowrap;
             background: #ee7256;
             color: white;
+        }
+
+        .btn-stocks {
+            white-space: nowrap;
+            background: #e5e7eb;
+            color: #1f2937;
+            font-size: .85rem;
+            padding: .55rem .75rem;
+        }
+
+        .modal-stocks {
+            position: fixed;
+            inset: 0;
+            background: rgba(17, 24, 39, .45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            z-index: 50;
+        }
+
+        .modal-stocks.activo {
+            display: flex;
+        }
+
+        .modal-stocks-panel {
+            width: min(720px, 100%);
+            max-height: 85vh;
+            overflow: auto;
+            background: white;
+            border-radius: 18px;
+            padding: 1.25rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, .18);
+        }
+
+        .modal-stocks-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .modal-stocks-header h2 {
+            margin: 0 0 .25rem;
+            font-size: 1.15rem;
+        }
+
+        .modal-stocks-header p {
+            margin: 0;
+            color: #6b7280;
+            font-size: .9rem;
+        }
+
+        .btn-cerrar-modal {
+            background: #e5e7eb;
+            color: #1f2937;
+            padding: .45rem .75rem;
+            font-size: .85rem;
+        }
+
+        .tabla-stocks {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .9rem;
+        }
+
+        .tabla-stocks th,
+        .tabla-stocks td {
+            text-align: left;
+            padding: .65rem .5rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .tabla-stocks th {
+            color: #6b7280;
+            font-size: .8rem;
+        }
+
+        .tabla-stocks td.numero {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .tabla-stocks th.numero {
+            text-align: right;
+        }
+
+        .stocks-conversiones {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: .75rem 1.25rem;
+            margin-bottom: .75rem;
+            color: #374151;
+            font-size: .9rem;
+            font-weight: 600;
         }
 
         .btn-confirmar {
@@ -623,7 +754,12 @@
                 grid-template-columns: 1fr;
             }
 
-            .btn-add {
+            .articulo-acciones {
+                width: 100%;
+            }
+
+            .btn-add,
+            .btn-stocks {
                 width: 100%;
             }
 
@@ -655,6 +791,10 @@
                 {% elif empresa_actual %}
                 <span class="header-empresa-label">{{ empresa_actual.nombre }}</span>
                 {% endif %}
+                <label class="header-fecha-analisis" for="fechaAnalisis">
+                    Fecha análisis Consumos
+                    <input type="date" id="fechaAnalisis" title="Fecha de análisis enviada al AS/400">
+                </label>
                 <label class="header-cobertura" for="coberturaDias">
                     Cobertura (días)
                     <input type="number" id="coberturaDias" min="1" step="1" value="30" inputmode="numeric" title="Días de stock a cubrir con el pedido">
@@ -762,6 +902,19 @@
 
     </div>
 
+    <div class="modal-stocks" id="modalStocks" hidden>
+        <div class="modal-stocks-panel" role="dialog" aria-modal="true" aria-labelledby="modalStocksTitulo">
+            <div class="modal-stocks-header">
+                <div>
+                    <h2 id="modalStocksTitulo">Detalle de stocks</h2>
+                    <p id="modalStocksSubtitulo"></p>
+                </div>
+                <button type="button" class="btn-cerrar-modal" id="btnCerrarModalStocks">Cerrar</button>
+            </div>
+            <div id="modalStocksContenido"></div>
+        </div>
+    </div>
+
     <script>
         const proveedores = {{ proveedores| tojson }};
         const pedido = {};
@@ -786,6 +939,7 @@
         const filtroSinStock = document.getElementById("filtroSinStock");
         const filtroCantidadAlta = document.getElementById("filtroCantidadAlta");
         const coberturaDias = document.getElementById("coberturaDias");
+        const fechaAnalisis = document.getElementById("fechaAnalisis");
         const empresaSelector = document.getElementById("empresaSelector");
 
         let proveedorSeleccionado = null;
@@ -801,6 +955,138 @@
 
         function formatearStock(stock) {
             return Math.round(Number(stock || 0));
+        }
+
+        function formatearStockDetalle(stock) {
+            const numero = Number(stock || 0);
+
+            if (Number.isInteger(numero)) {
+                return String(numero);
+            }
+
+            return numero.toFixed(3).replace(/\.?0+$/, "");
+        }
+
+        const modalStocks = document.getElementById("modalStocks");
+        const modalStocksSubtitulo = document.getElementById("modalStocksSubtitulo");
+        const modalStocksContenido = document.getElementById("modalStocksContenido");
+        const btnCerrarModalStocks = document.getElementById("btnCerrarModalStocks");
+
+        function cerrarModalStocks() {
+            modalStocks.classList.remove("activo");
+            modalStocks.hidden = true;
+            modalStocksContenido.innerHTML = "";
+        }
+
+        function abrirModalStocks(codigo, descripcion) {
+            modalStocksSubtitulo.textContent = `${codigo} · ${descripcion}`;
+            modalStocksContenido.innerHTML = '<p style="color:#6b7280;">Cargando stocks...</p>';
+            modalStocks.hidden = false;
+            modalStocks.classList.add("activo");
+        }
+
+        function etiquetaConversion(abr1, abr2) {
+            const u1 = String(abr1 || "").trim();
+            const u2 = String(abr2 || "").trim();
+
+            if (!u1 || !u2) {
+                return "";
+            }
+
+            return `${u1}X${u2}`;
+        }
+
+        function renderConversionesStocks(referencia) {
+            const abr1 = referencia.abr1 || "";
+            const abr2 = referencia.abr2 || "";
+            const abr3 = referencia.abr3 || "";
+            const factor = Number(referencia.factor || 0);
+            const factor1 = Number(referencia.factor1 || 0);
+            const conversiones = [];
+
+            const conv12 = etiquetaConversion(abr1, abr2);
+            if (conv12 && factor > 0) {
+                conversiones.push(`${escapeHtml(conv12)} ${formatearStockDetalle(factor)}`);
+            }
+
+            const conv23 = etiquetaConversion(abr2, abr3);
+            if (conv23 && factor > 0 && factor1 > 0) {
+                conversiones.push(`${escapeHtml(conv23)} ${formatearStockDetalle(factor1 / factor)}`);
+            }
+
+            const conv13 = etiquetaConversion(abr1, abr3);
+            if (conv13 && factor1 > 0) {
+                conversiones.push(`${escapeHtml(conv13)} ${formatearStockDetalle(factor1)}`);
+            }
+
+            if (!conversiones.length) {
+                return "";
+            }
+
+            return `<div class="stocks-conversiones">${conversiones.map(texto => `<span>${texto}</span>`).join("")}</div>`;
+        }
+
+        function renderTablaStocks(almacenes) {
+            if (!almacenes.length) {
+                return '<p style="color:#6b7280;">No hay stock en almacenes para este artículo.</p>';
+            }
+
+            const referencia = almacenes[0] || {};
+            const abr1 = referencia.abr1 || "";
+            const abr2 = referencia.abr2 || "";
+            const abr3 = referencia.abr3 || "";
+            const columnas = [
+                { abr: abr1, stock: "stock1" },
+                { abr: abr2, stock: "stock2" },
+                { abr: abr3, stock: "stock3" },
+            ].filter(columna => columna.abr);
+
+            const cabecerasUnidades = columnas.map(columna => `
+                <th class="numero">${escapeHtml(columna.abr)}</th>
+            `).join("");
+
+            const filas = almacenes.map(almacen => {
+                const celdasStock = columnas.map(columna => `
+                    <td class="numero">${formatearStockDetalle(almacen[columna.stock])}</td>
+                `).join("");
+
+                return `
+                    <tr>
+                        <td>${escapeHtml(almacen.nombreAlmacen)}</td>
+                        ${celdasStock}
+                    </tr>
+                `;
+            }).join("");
+
+            return `
+                ${renderConversionesStocks(referencia)}
+                <table class="tabla-stocks">
+                    <thead>
+                        <tr>
+                            <th>Almacén</th>
+                            ${cabecerasUnidades}
+                        </tr>
+                    </thead>
+                    <tbody>${filas}</tbody>
+                </table>
+            `;
+        }
+
+        async function cargarDetalleStocks(codigo, descripcion) {
+            abrirModalStocks(codigo, descripcion);
+
+            try {
+                const response = await fetch(`/api/articulos/${encodeURIComponent(codigo)}/stocks`);
+                const data = await leerRespuestaApi(response);
+
+                if (!response.ok || data.success === false) {
+                    throw new Error(data.mensaje || "No se pudieron cargar los stocks");
+                }
+
+                modalStocksContenido.innerHTML = renderTablaStocks(data.almacenes || []);
+            } catch (error) {
+                modalStocksContenido.innerHTML = `<p style="color:#991b1b;">${escapeHtml(error.message)}</p>`;
+            }
         }
 
         async function leerRespuestaApi(response) {
@@ -953,9 +1239,14 @@
                         </div>
                     </div>
 
-                    <button type="button" class="btn-add">
-                        Añadir
-                    </button>
+                    <div class="articulo-acciones">
+                        <button type="button" class="btn-stocks" data-codigo="${escapeHtml(articulo.codigo)}">
+                            Detalle stocks
+                        </button>
+                        <button type="button" class="btn-add">
+                            Añadir
+                        </button>
+                    </div>
                 </div>
             `;
         }
@@ -985,7 +1276,11 @@
             mostrarEstadoArticulos("Cargando artículos...");
 
             try {
-                const response = await fetch(`/api/articulos?proveedor=${encodeURIComponent(proveedor)}`);
+                const params = new URLSearchParams({
+                    proveedor,
+                    fechaAnalisis: obtenerFechaAnalisisAs400()
+                });
+                const response = await fetch(`/api/articulos?${params.toString()}`);
                 const data = await leerRespuestaApi(response);
 
                 if (!response.ok || data.success === false) {
@@ -1178,6 +1473,35 @@
             const dias = Number(coberturaDias.value || 30);
 
             return dias > 0 ? dias : 30;
+        }
+
+        function formatearFechaInput(fecha) {
+            const ano = fecha.getFullYear();
+            const mes = String(fecha.getMonth() + 1).padStart(2, "0");
+            const dia = String(fecha.getDate()).padStart(2, "0");
+            return `${ano}-${mes}-${dia}`;
+        }
+
+        function obtenerFechaAnalisisPorDefecto() {
+            const fecha = new Date();
+            fecha.setMonth(fecha.getMonth() - 3);
+            return formatearFechaInput(fecha);
+        }
+
+        function inicializarFechaAnalisis() {
+            if (!fechaAnalisis || fechaAnalisis.value) {
+                return;
+            }
+
+            fechaAnalisis.value = obtenerFechaAnalisisPorDefecto();
+        }
+
+        function obtenerFechaAnalisisAs400() {
+            if (!fechaAnalisis || !fechaAnalisis.value) {
+                return obtenerFechaAnalisisPorDefecto().replace(/-/g, "");
+            }
+
+            return fechaAnalisis.value.replace(/-/g, "");
         }
 
         function calcularStockEfectivo(stock, reservado, pendiente) {
@@ -1457,6 +1781,17 @@
         }
 
         articulosLista.addEventListener("click", event => {
+            const buttonStocks = event.target.closest(".btn-stocks");
+
+            if (buttonStocks) {
+                const itemStocks = buttonStocks.closest(".articulo-item");
+                cargarDetalleStocks(
+                    itemStocks.dataset.codigo,
+                    itemStocks.dataset.descripcion
+                );
+                return;
+            }
+
             const button = event.target.closest(".btn-add");
 
             if (!button) {
@@ -1561,6 +1896,33 @@
 
         coberturaDias.addEventListener("input", recalcularDatosPorCobertura);
         coberturaDias.addEventListener("change", recalcularDatosPorCobertura);
+
+        if (fechaAnalisis) {
+            inicializarFechaAnalisis();
+
+            fechaAnalisis.addEventListener("change", () => {
+                const proveedor = proveedorCodigo.value.trim();
+
+                if (proveedor) {
+                    limpiarPedido();
+                    cargarArticulos(proveedor);
+                }
+            });
+        }
+
+        btnCerrarModalStocks.addEventListener("click", cerrarModalStocks);
+
+        modalStocks.addEventListener("click", event => {
+            if (event.target === modalStocks) {
+                cerrarModalStocks();
+            }
+        });
+
+        document.addEventListener("keydown", event => {
+            if (event.key === "Escape" && modalStocks.classList.contains("activo")) {
+                cerrarModalStocks();
+            }
+        });
 
         if (empresaSelector) {
             empresaSelector.addEventListener("change", async () => {

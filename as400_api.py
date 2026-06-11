@@ -103,9 +103,37 @@ def _request(empresa, method, operacion, params=None, **kwargs):
     return data
 
 
-def obtener_articulos(empresa, proveedor_codigo):
+def _fecha_analisis_por_defecto():
+    import calendar
+    from datetime import date
+
+    hoy = date.today()
+    ano = hoy.year
+    mes = hoy.month - 3
+
+    if mes <= 0:
+        mes += 12
+        ano -= 1
+
+    dia = min(hoy.day, calendar.monthrange(ano, mes)[1])
+    return date(ano, mes, dia).strftime("%Y%m%d")
+
+
+def normalizar_fecha_analisis(fecha):
+    texto = str(fecha or "").strip().replace("-", "")
+
+    if not texto:
+        return _fecha_analisis_por_defecto()
+
+    if len(texto) != 8 or not texto.isdigit():
+        raise AS400ApiError("La fecha de análisis no es válida")
+
+    return texto
+
+
+def obtener_articulos(empresa, proveedor_codigo, fechaAnalisis=None):
     """
-    GET /articulos?proveedor={codigo}
+    GET /articulos?proveedor={codigo}&fechaAnalisis={aaaammdd}
     """
     proveedor = str(proveedor_codigo).strip()
 
@@ -116,7 +144,10 @@ def obtener_articulos(empresa, proveedor_codigo):
         empresa,
         "GET",
         "articulos",
-        params={"proveedor": proveedor},
+        params={
+            "proveedor": proveedor,
+            "fechaAnalisis": normalizar_fecha_analisis(fechaAnalisis),
+        },
     )
     salida = data.get("salida", data)
     articulos = salida.get("articulos", [])
@@ -128,6 +159,65 @@ def obtener_articulos(empresa, proveedor_codigo):
     num_articulos = min(num_articulos, len(articulos))
 
     return [_normalizar_articulo(articulo) for articulo in articulos[:num_articulos]]
+
+
+def _normalizar_almacen(almacen):
+    return {
+        "codigoAlmacen": almacen.get("codigoAlmacen"),
+        "nombreAlmacen": str(almacen.get("nombreAlmacen", "")).strip(),
+        "stock1": almacen.get("stock1", 0),
+        "abr1": str(almacen.get("abr1", "")).strip(),
+        "stock2": almacen.get("stock2", 0),
+        "abr2": str(almacen.get("abr2", "")).strip(),
+        "factor": almacen.get("factor", 0),
+        "stock3": almacen.get("stock3", 0),
+        "abr3": str(almacen.get("abr3", "")).strip(),
+        "factor1": almacen.get("factor1", 0),
+    }
+
+
+def obtener_stocks(empresa, codigo_articulo):
+    """
+    GET /stocks?codigoArticulo={codigo}
+    """
+    codigo = str(codigo_articulo or "").strip()
+
+    if not codigo:
+        raise AS400ApiError("Falta el código de artículo")
+
+    data = _request(
+        empresa,
+        "GET",
+        "stocks",
+        params={"codigoArticulo": codigo},
+    )
+    salida = data.get("salida", data)
+
+    if not _success_ok(salida.get("success")):
+        raise AS400ApiError(salida.get("mensaje", "Error obteniendo stocks"))
+
+    almacenes = salida.get("almacenes", [])
+
+    try:
+        num_almacenes = int(salida.get("numAlmacenes", len(almacenes)))
+    except (TypeError, ValueError):
+        num_almacenes = len(almacenes)
+
+    num_almacenes = min(num_almacenes, len(almacenes))
+    validos = []
+
+    for almacen in almacenes[:num_almacenes]:
+        registro = _normalizar_almacen(almacen)
+
+        if int(registro.get("codigoAlmacen") or 0) <= 0:
+            continue
+
+        if not registro.get("nombreAlmacen"):
+            continue
+
+        validos.append(registro)
+
+    return validos
 
 
 def obtener_articulo_por_codigo(empresa, codigo, proveedor_codigo):

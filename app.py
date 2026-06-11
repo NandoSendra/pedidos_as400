@@ -1,6 +1,12 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 from config import Config
-from as400_api import obtener_articulos, crear_pedido, AS400ApiError, obtener_proveedores
+from as400_api import (
+    obtener_articulos,
+    crear_pedido,
+    AS400ApiError,
+    obtener_proveedores,
+    obtener_stocks,
+)
 from auth import admin_required, init_auth, safe_next_url
 from empresa_session import clear_empresa_session, ensure_empresa_session, set_empresa_session
 from empresas_store import list_empresas_public
@@ -261,6 +267,7 @@ def pedido():
 @app.route("/api/articulos")
 def api_articulos():
     proveedor_codigo = request.args.get("proveedor", "").strip()
+    fechaAnalisis = request.args.get("fechaAnalisis", "").strip()
 
     if not proveedor_codigo:
         return jsonify({
@@ -277,11 +284,36 @@ def api_articulos():
         }), 400
 
     try:
-        articulos = obtener_articulos(empresa, proveedor_codigo)
+        articulos = obtener_articulos(empresa, proveedor_codigo, fechaAnalisis)
 
         return jsonify({
             "success": True,
             "articulos": articulos
+        })
+
+    except AS400ApiError as e:
+        return jsonify({
+            "success": False,
+            "mensaje": str(e)
+        }), 500
+
+
+@app.route("/api/articulos/<codigo>/stocks")
+def api_articulos_stocks(codigo):
+    empresa = ensure_empresa_session(session.get("usuario"))
+
+    if not empresa:
+        return jsonify({
+            "success": False,
+            "mensaje": "No hay empresa seleccionada"
+        }), 400
+
+    try:
+        almacenes = obtener_stocks(empresa, codigo)
+
+        return jsonify({
+            "success": True,
+            "almacenes": almacenes
         })
 
     except AS400ApiError as e:

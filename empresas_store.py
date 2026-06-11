@@ -6,6 +6,7 @@ from config import Config
 DEFAULT_ENDPOINTS = {
     "proveedores": "/proveedores",
     "articulos": "/articulos",
+    "stocks": "/stocks",
     "crear_pedido": "/pedidos/crear",
 }
 
