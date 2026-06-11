@@ -1,4 +1,6 @@
 .env
+users.json
+empresas.json
 deploy/local.env
 FLASK_SECRET_KEY=clave_desarrollo
 requirements.txt

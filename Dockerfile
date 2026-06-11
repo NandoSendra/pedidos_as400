@@ -8,7 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 COPY requirements-prod.txt .
 RUN pip install --no-cache-dir -r requirements-prod.txt
 
-COPY app.py as400_api.py config.py wsgi.py ./
+COPY app.py as400_api.py auth.py config.py users_store.py empresas_store.py empresa_session.py wsgi.py ./
 COPY templates/ templates/
 COPY static/ static/
 

@@ -37,6 +37,34 @@
             font-size: 1.4rem;
         }
 
+        .header-empresa {
+            display: flex;
+            align-items: center;
+            gap: .65rem;
+            background: rgba(255, 255, 255, .18);
+            padding: .55rem .9rem;
+            border-radius: 12px;
+            font-size: .95rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .header-empresa select {
+            border: 2px solid rgba(255, 255, 255, .5);
+            border-radius: 8px;
+            padding: .45rem .55rem;
+            font-size: .95rem;
+            font-weight: 700;
+            color: #1e7883;
+            background: white;
+            max-width: 220px;
+        }
+
+        .header-empresa-label {
+            font-size: .95rem;
+            font-weight: 700;
+        }
+
         .header-cobertura {
             display: flex;
             align-items: center;
@@ -65,6 +93,40 @@
             outline: none;
             border-color: white;
             box-shadow: 0 0 0 3px rgba(255, 255, 255, .25);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            flex-wrap: wrap;
+        }
+
+        .header-usuario {
+            display: flex;
+            align-items: center;
+            gap: .65rem;
+            background: rgba(255, 255, 255, .18);
+            padding: .55rem .9rem;
+            border-radius: 12px;
+            font-size: .9rem;
+            font-weight: 600;
+        }
+
+        .btn-logout {
+            border: 2px solid rgba(255, 255, 255, .5);
+            border-radius: 8px;
+            padding: .35rem .65rem;
+            font-size: .85rem;
+            font-weight: 700;
+            color: white;
+            background: transparent;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .btn-logout:hover {
+            background: rgba(255, 255, 255, .15);
         }
 
         .proveedor-bar {
@@ -433,6 +495,12 @@
             padding: .4rem .65rem;
         }
 
+        .cantidad-unidad {
+            font-size: .9rem;
+            font-weight: 600;
+            color: #6b7280;
+        }
+
         .cantidad-input {
             width: 80px;
             padding: .45rem .5rem;
@@ -441,6 +509,14 @@
             text-align: center;
             font-weight: 700;
             font-size: 1rem;
+            -moz-appearance: textfield;
+            appearance: textfield;
+        }
+
+        .cantidad-input::-webkit-outer-spin-button,
+        .cantidad-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
         }
 
         .cantidad-input:focus {
@@ -564,10 +640,36 @@
     <header>
         <div class="header-inner">
             <h1>Pedido rápido</h1>
-            <label class="header-cobertura" for="coberturaDias">
-                Cobertura (días)
-                <input type="number" id="coberturaDias" min="1" step="1" value="30" inputmode="numeric" title="Días de stock a cubrir con el pedido">
-            </label>
+            <div class="header-actions">
+                {% if empresas|length > 1 %}
+                <label class="header-empresa" for="empresaSelector">
+                    Empresa
+                    <select id="empresaSelector" aria-label="Seleccionar empresa">
+                        {% for empresa in empresas %}
+                        <option value="{{ empresa.id }}" {% if empresa_actual and empresa.id == empresa_actual.id %}selected{% endif %}>
+                            {{ empresa.nombre }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </label>
+                {% elif empresa_actual %}
+                <span class="header-empresa-label">{{ empresa_actual.nombre }}</span>
+                {% endif %}
+                <label class="header-cobertura" for="coberturaDias">
+                    Cobertura (días)
+                    <input type="number" id="coberturaDias" min="1" step="1" value="30" inputmode="numeric" title="Días de stock a cubrir con el pedido">
+                </label>
+                {% if auth_enabled and usuario %}
+                <div class="header-usuario">
+                    {% if es_admin %}
+                    <a class="btn-logout" href="{{ url_for('admin_usuarios') }}">Usuarios</a>
+                    {% endif %}
+                    <a class="btn-logout" href="{{ url_for('cuenta_password') }}">Contraseña</a>
+                    <span>{{ usuario }}</span>
+                    <a class="btn-logout" href="{{ url_for('logout') }}">Salir</a>
+                </div>
+                {% endif %}
+            </div>
         </div>
     </header>
 
@@ -684,6 +786,7 @@
         const filtroSinStock = document.getElementById("filtroSinStock");
         const filtroCantidadAlta = document.getElementById("filtroCantidadAlta");
         const coberturaDias = document.getElementById("coberturaDias");
+        const empresaSelector = document.getElementById("empresaSelector");
 
         let proveedorSeleccionado = null;
         let cargandoArticulos = false;
@@ -698,6 +801,15 @@
 
         function formatearStock(stock) {
             return Math.round(Number(stock || 0));
+        }
+
+        async function leerRespuestaApi(response) {
+            if (response.status === 401) {
+                window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
+                throw new Error("Sesión expirada. Redirigiendo al login...");
+            }
+
+            return response.json();
         }
 
         function limpiarPedido() {
@@ -743,7 +855,7 @@
             const familia = articulo.familia || "Sin familia";
             const precio = Number(articulo.precio || 0);
             const stock = articulo.stock ?? 0;
-            const stockOtros = articulo.stockotros ?? 0;
+            const stockOtros = articulo.stockOtros ?? 0;
             const reservado = articulo.reservado ?? 0;
             const pendiente = articulo.pendiente ?? 0;
             const consumoDiario = articulo.Consumo_Diario ?? 0;
@@ -874,7 +986,7 @@
 
             try {
                 const response = await fetch(`/api/articulos?proveedor=${encodeURIComponent(proveedor)}`);
-                const data = await response.json();
+                const data = await leerRespuestaApi(response);
 
                 if (!response.ok || data.success === false) {
                     throw new Error(data.mensaje || "No se pudieron cargar los artículos");
@@ -1332,6 +1444,7 @@
                             <button type="button" class="btn-secundario" data-accion="sumar" data-codigo="${item.codigo}">
                                 +
                             </button>
+                            <span class="cantidad-unidad">${escapeHtml(item.unidadMedida)}</span>
                         </div>
                     `;
 
@@ -1357,7 +1470,7 @@
             const familia = item.dataset.familia || "";
             const precio = Number(item.dataset.precio || 0);
             const stock = Number(item.dataset.stock || 0);
-            const stockOtros = Number(item.dataset.stockotros || 0);
+            const stockOtros = Number(item.dataset.stockOtros || 0);
             const reservado = Number(item.dataset.reservado || 0);
             const pendiente = Number(item.dataset.pendiente || 0);
             const consumoDiario = Math.round(Number(item.dataset.consumoDiario || 0));
@@ -1449,6 +1562,32 @@
         coberturaDias.addEventListener("input", recalcularDatosPorCobertura);
         coberturaDias.addEventListener("change", recalcularDatosPorCobertura);
 
+        if (empresaSelector) {
+            empresaSelector.addEventListener("change", async () => {
+                try {
+                    const response = await fetch("/api/empresa", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            empresa_id: empresaSelector.value
+                        })
+                    });
+                    const data = await leerRespuestaApi(response);
+
+                    if (!response.ok || data.success === false) {
+                        throw new Error(data.mensaje || "No se pudo cambiar de empresa");
+                    }
+
+                    limpiarPedido();
+                    window.location.reload();
+                } catch (error) {
+                    mostrarMensaje(error.message, "error");
+                }
+            });
+        }
+
         proveedorBusqueda.addEventListener("focus", () => {
             renderProveedorDropdown(filtrarProveedores(proveedorBusqueda.value));
         });
@@ -1539,7 +1678,7 @@
                     body: JSON.stringify(payload)
                 });
 
-                const data = await response.json();
+                const data = await leerRespuestaApi(response);
 
                 if (!response.ok || data.success === false) {
                     throw new Error(data.mensaje || "No se pudo confirmar el pedido");

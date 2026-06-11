@@ -1,0 +1,17 @@
+{
+  "empresas": [
+    {
+      "id": "1",
+      "nombre": "Casa Ricardo",
+      "base_url": "http://80.28.249.31:10014/web/services/PEDIDOS",
+      "endpoints": {
+        "proveedores": "/proveedores",
+        "articulos": "/articulos",
+        "crear_pedido": "/pedidos/crear"
+      },
+      "api_user": "",
+      "api_password": "",
+      "activa": true
+    }
+  ]
+}

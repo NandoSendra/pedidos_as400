@@ -1,0 +1,11 @@
+{
+  "usuarios": [
+    {
+      "usuario": "admin",
+      "nombre": "Administrador",
+      "password_hash": "sustituir-con-hash-generado-por-manage-users",
+      "activo": true,
+      "admin": true
+    }
+  ]
+}

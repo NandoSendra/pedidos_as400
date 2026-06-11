@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Usuarios · Pedidos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, Arial, sans-serif;
+            background: #f3f4f6;
+            color: #1f2937;
+        }
+
+        header {
+            background: #1e7883;
+            color: white;
+            padding: 1rem 1.5rem;
+        }
+
+        .header-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.4rem;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: .6rem;
+            flex-wrap: wrap;
+        }
+
+        .header-link {
+            color: white;
+            text-decoration: none;
+            border: 2px solid rgba(255, 255, 255, .5);
+            border-radius: 8px;
+            padding: .4rem .75rem;
+            font-size: .9rem;
+            font-weight: 700;
+        }
+
+        .header-link:hover {
+            background: rgba(255, 255, 255, .15);
+        }
+
+        main {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 1rem 1.5rem 2rem;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 18px;
+            padding: 1.25rem;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .06);
+            margin-bottom: 1rem;
+        }
+
+        .panel h2 {
+            margin: 0 0 1rem;
+            font-size: 1.15rem;
+        }
+
+        .mensaje {
+            padding: .85rem 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            font-size: .95rem;
+        }
+
+        .mensaje.ok {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .mensaje.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: .85rem;
+            align-items: end;
+        }
+
+        .campo label {
+            display: block;
+            font-size: .85rem;
+            font-weight: 700;
+            color: #374151;
+            margin-bottom: .35rem;
+        }
+
+        .campo input[type="text"],
+        .campo input[type="password"] {
+            width: 100%;
+            padding: .7rem .85rem;
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            font-size: 1rem;
+        }
+
+        .campo-check {
+            display: flex;
+            align-items: center;
+            gap: .45rem;
+            font-size: .9rem;
+            font-weight: 600;
+            padding-bottom: .55rem;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 10px;
+            padding: .7rem 1rem;
+            font-size: .95rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-primario {
+            background: #1e7883;
+            color: white;
+        }
+
+        .btn-secundario {
+            background: #e5e7eb;
+            color: #1f2937;
+        }
+
+        .btn-peligro {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .tabla-wrap {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: .75rem .5rem;
+            border-bottom: 1px solid #e5e7eb;
+            vertical-align: top;
+        }
+
+        th {
+            font-size: .85rem;
+            color: #6b7280;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: .2rem .55rem;
+            border-radius: 999px;
+            font-size: .75rem;
+            font-weight: 700;
+        }
+
+        .badge.ok {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .badge.off {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+
+        .badge.admin {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+
+        .acciones {
+            display: flex;
+            flex-direction: column;
+            gap: .5rem;
+            min-width: 220px;
+        }
+
+        .acciones form {
+            display: flex;
+            gap: .4rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .acciones input[type="password"] {
+            flex: 1;
+            min-width: 120px;
+            padding: .45rem .55rem;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+        }
+
+        .acciones .btn {
+            padding: .45rem .7rem;
+            font-size: .85rem;
+        }
+
+        .yo {
+            font-size: .8rem;
+            color: #6b7280;
+        }
+
+        .empresas-checks {
+            display: flex;
+            flex-direction: column;
+            gap: .35rem;
+            font-size: .85rem;
+            font-weight: 600;
+        }
+
+        .empresas-checks label {
+            display: flex;
+            align-items: center;
+            gap: .4rem;
+        }
+
+        .empresas-resumen {
+            font-size: .85rem;
+            color: #4b5563;
+            margin-bottom: .5rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="header-inner">
+            <h1>Administración de usuarios</h1>
+            <div class="header-actions">
+                <a class="header-link" href="{{ url_for('pedido') }}">Volver al pedido</a>
+                <a class="header-link" href="{{ url_for('cuenta_password') }}">Mi contraseña</a>
+                <a class="header-link" href="{{ url_for('logout') }}">Salir</a>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        {% if mensaje %}
+        <div class="mensaje {{ mensaje_tipo }}">{{ mensaje }}</div>
+        {% endif %}
+
+        <section class="panel">
+            <h2>Nuevo usuario</h2>
+            <form method="POST" action="{{ url_for('admin_usuarios_crear') }}">
+                <div class="form-grid">
+                    <div class="campo">
+                        <label for="usuario">Usuario</label>
+                        <input type="text" id="usuario" name="usuario" required autocomplete="off">
+                    </div>
+                    <div class="campo">
+                        <label for="nombre">Nombre</label>
+                        <input type="text" id="nombre" name="nombre" autocomplete="off">
+                    </div>
+                    <div class="campo">
+                        <label for="password">Contraseña</label>
+                        <input type="password" id="password" name="password" required autocomplete="new-password">
+                    </div>
+                    <label class="campo-check">
+                        <input type="checkbox" name="admin" value="1">
+                        Administrador
+                    </label>
+                    <div class="campo">
+                        <span>Empresas</span>
+                        <div class="empresas-checks">
+                            <label>
+                                <input type="checkbox" name="empresas" value="*" checked>
+                                Todas
+                            </label>
+                            {% for empresa in empresas_disponibles %}
+                            <label>
+                                <input type="checkbox" name="empresas" value="{{ empresa.id }}">
+                                {{ empresa.nombre }}
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primario">Crear usuario</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>Usuarios registrados</h2>
+            <div class="tabla-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Nombre</th>
+                            <th>Estado</th>
+                            <th>Rol</th>
+                            <th>Empresas</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for usuario in usuarios %}
+                        <tr>
+                            <td>
+                                {{ usuario.usuario }}
+                                {% if usuario.usuario == actor %}
+                                <div class="yo">(tú)</div>
+                                {% endif %}
+                            </td>
+                            <td>{{ usuario.nombre }}</td>
+                            <td>
+                                {% if usuario.activo %}
+                                <span class="badge ok">Activo</span>
+                                {% else %}
+                                <span class="badge off">Inactivo</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if usuario.admin %}
+                                <span class="badge admin">Admin</span>
+                                {% else %}
+                                <span class="badge off">Usuario</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="empresas-resumen">{{ usuario.empresas_texto }}</div>
+                                <form method="POST" action="{{ url_for('admin_usuarios_empresas', username=usuario.usuario) }}">
+                                    <div class="empresas-checks">
+                                        <label>
+                                            <input type="checkbox" name="empresas" value="*" {% if '*' in usuario.empresas %}checked{% endif %}>
+                                            Todas
+                                        </label>
+                                        {% for empresa in empresas_disponibles %}
+                                        <label>
+                                            <input type="checkbox" name="empresas" value="{{ empresa.id }}"
+                                                {% if '*' not in usuario.empresas and empresa.id in usuario.empresas %}checked{% endif %}>
+                                            {{ empresa.nombre }}
+                                        </label>
+                                        {% endfor %}
+                                    </div>
+                                    <button type="submit" class="btn btn-secundario">Guardar empresas</button>
+                                </form>
+                            </td>
+                            <td>
+                                <div class="acciones">
+                                    <form method="POST" action="{{ url_for('admin_usuarios_password', username=usuario.usuario) }}">
+                                        <input type="password" name="password" placeholder="Nueva contraseña" required autocomplete="new-password">
+                                        <button type="submit" class="btn btn-secundario">Cambiar clave</button>
+                                    </form>
+
+                                    {% if usuario.activo %}
+                                    <form method="POST" action="{{ url_for('admin_usuarios_estado', username=usuario.usuario) }}">
+                                        <input type="hidden" name="activo" value="0">
+                                        <button type="submit" class="btn btn-peligro">Desactivar</button>
+                                    </form>
+                                    {% else %}
+                                    <form method="POST" action="{{ url_for('admin_usuarios_estado', username=usuario.usuario) }}">
+                                        <input type="hidden" name="activo" value="1">
+                                        <button type="submit" class="btn btn-secundario">Activar</button>
+                                    </form>
+                                    {% endif %}
+
+                                    {% if usuario.admin %}
+                                    <form method="POST" action="{{ url_for('admin_usuarios_rol', username=usuario.usuario) }}">
+                                        <input type="hidden" name="admin" value="0">
+                                        <button type="submit" class="btn btn-secundario">Quitar admin</button>
+                                    </form>
+                                    {% else %}
+                                    <form method="POST" action="{{ url_for('admin_usuarios_rol', username=usuario.usuario) }}">
+                                        <input type="hidden" name="admin" value="1">
+                                        <button type="submit" class="btn btn-secundario">Hacer admin</button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6">No hay usuarios.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+</body>
+
+</html>

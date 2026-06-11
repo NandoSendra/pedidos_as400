@@ -6,4 +6,7 @@ services:
       - "${FLASK_PORT:-5100}:5100"
     env_file:
       - .env
+    volumes:
+      - ./users.json:/app/users.json
+      - ./empresas.json:/app/empresas.json
     restart: unless-stopped

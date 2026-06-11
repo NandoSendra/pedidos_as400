@@ -1,6 +1,8 @@
 import requests
 from urllib.parse import urlencode
+
 from config import Config
+from empresas_store import endpoint_path
 
 
 class AS400ApiError(Exception):
@@ -29,7 +31,7 @@ def _normalizar_articulo(articulo):
     if articulo.get("precio") is None:
         articulo["precio"] = 0
 
-    for campo in ("stockotros", "reservado", "pendiente"):
+    for campo in ("stockOtros", "reservado", "pendiente"):
         if articulo.get(campo) is None:
             articulo[campo] = 0
 
@@ -43,15 +45,19 @@ def _normalizar_articulo(articulo):
     return articulo
 
 
-def _get_auth():
-    if Config.AS400_API_USER and Config.AS400_API_PASSWORD:
-        return (Config.AS400_API_USER, Config.AS400_API_PASSWORD)
+def _get_auth(empresa):
+    usuario = empresa.get("api_user") or Config.AS400_API_USER
+    password = empresa.get("api_password") or Config.AS400_API_PASSWORD
+
+    if usuario and password:
+        return (usuario, password)
 
     return None
 
 
-def _build_url(endpoint, params=None):
-    url = f"{Config.AS400_API_BASE_URL.rstrip('/')}/{endpoint.lstrip('/')}"
+def _build_url(empresa, endpoint, params=None):
+    base_url = str(empresa.get("base_url", "")).rstrip("/")
+    url = f"{base_url}/{endpoint.lstrip('/')}"
 
     if params:
         query = urlencode(params)
@@ -61,17 +67,18 @@ def _build_url(endpoint, params=None):
     return url
 
 
-def _request(method, endpoint, params=None, **kwargs):
-    if not Config.AS400_API_BASE_URL:
-        raise AS400ApiError("No está configurada AS400_API_BASE_URL")
+def _request(empresa, method, operacion, params=None, **kwargs):
+    if not empresa or not empresa.get("base_url"):
+        raise AS400ApiError("No hay empresa configurada para la petición")
 
-    url = _build_url(endpoint, params)
+    endpoint = endpoint_path(empresa, operacion)
+    url = _build_url(empresa, endpoint, params)
 
     try:
         response = requests.request(
             method=method,
             url=url,
-            auth=_get_auth(),
+            auth=_get_auth(empresa),
             timeout=20,
             **kwargs
         )
@@ -96,8 +103,7 @@ def _request(method, endpoint, params=None, **kwargs):
     return data
 
 
-
-def obtener_articulos(proveedor_codigo):
+def obtener_articulos(empresa, proveedor_codigo):
     """
     GET /articulos?proveedor={codigo}
     """
@@ -107,8 +113,9 @@ def obtener_articulos(proveedor_codigo):
         raise AS400ApiError("Falta el código de proveedor")
 
     data = _request(
+        empresa,
         "GET",
-        "/articulos",
+        "articulos",
         params={"proveedor": proveedor},
     )
     salida = data.get("salida", data)
@@ -119,60 +126,20 @@ def obtener_articulos(proveedor_codigo):
         num_articulos = len(articulos)
 
     num_articulos = min(num_articulos, len(articulos))
-    
+
     return [_normalizar_articulo(articulo) for articulo in articulos[:num_articulos]]
 
 
-
-'''
-def obtener_articulos():
-    data = _request("GET", "/pedidos/articulos")
-
-    salida = data.get("salida", data)
-
-    success = salida.get("success")
-
-    if success not in (True, "1", 1, "true", "True"):
-        raise AS400ApiError("Error obteniendo artículos")
-
-    articulos = salida.get("articulos", [])
-
-    try:
-        num_articulos = int(salida.get("numArticulos", len(articulos)))
-    except (TypeError, ValueError):
-        num_articulos = len(articulos)
-
-    return articulos[:num_articulos]
-
-'''
-'''
-def obtener_articulos():
-    return [
-        {
-            "codigo": "ART001",
-            "descripcion": "Artículo prueba 1",
-            "precio": 12.5,
-            "stock": 100
-        },
-        {
-            "codigo": "ART002",
-            "descripcion": "Artículo prueba 2",
-            "precio": 8.75,
-            "stock": 50
-        }
-    ]
-
-'''
-
-def obtener_articulo_por_codigo(codigo, proveedor_codigo):
-    for articulo in obtener_articulos(proveedor_codigo):
+def obtener_articulo_por_codigo(empresa, codigo, proveedor_codigo):
+    for articulo in obtener_articulos(empresa, proveedor_codigo):
         if articulo["codigo"] == codigo:
             return articulo
 
     return None
 
-def obtener_proveedores():
-    data = _request("GET", "/proveedores")
+
+def obtener_proveedores(empresa):
+    data = _request(empresa, "GET", "proveedores")
 
     salida = data.get("salida", data)
 
@@ -191,7 +158,7 @@ def obtener_proveedores():
     return proveedores[:num_proveedores]
 
 
-def crear_pedido(proveedor_codigo, carrito):
+def crear_pedido(empresa, proveedor_codigo, usuario, carrito):
     lineas = [
         {
             "codigo_articulo": str(item["codigo"]).strip(),
@@ -203,13 +170,12 @@ def crear_pedido(proveedor_codigo, carrito):
 
     payload = {
         "cliente": int(proveedor_codigo),
+        "usuario": usuario,
         "numLineasIn": len(lineas),
         "lineas": lineas
     }
 
-    print(payload)
-
-    data = _request("POST", "/pedidos/crear", json=payload)
+    data = _request(empresa, "POST", "crear_pedido", json=payload)
 
     salida = data.get("salida", data)
 
