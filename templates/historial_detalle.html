@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Detalle de operación</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, Arial, sans-serif;
+            background: #f3f4f6;
+            color: #1f2937;
+        }
+
+        header {
+            background: #1e7883;
+            color: white;
+            padding: 1rem 1.5rem;
+        }
+
+        .header-inner,
+        .header-actions,
+        .acciones {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            flex-wrap: wrap;
+        }
+
+        .header-inner {
+            justify-content: space-between;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.4rem;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 8px;
+            padding: .55rem .8rem;
+            font-weight: 800;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .btn-nav {
+            color: white;
+            background: rgba(255, 255, 255, .18);
+        }
+
+        .btn-primario {
+            color: white;
+            background: #1e7883;
+        }
+
+        .btn-secundario {
+            color: #1e7883;
+            background: #d9f0f2;
+        }
+
+        .btn-peligro {
+            color: white;
+            background: #dc2626;
+        }
+
+        .btn:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+        }
+
+        main {
+            max-width: 1180px;
+            margin: 1.5rem auto;
+            padding: 0 1rem 2rem;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, .08);
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: .75rem;
+        }
+
+        .dato {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: .75rem;
+        }
+
+        .dato span {
+            display: block;
+            color: #6b7280;
+            font-size: .78rem;
+            font-weight: 800;
+            margin-bottom: .25rem;
+            text-transform: uppercase;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: .25rem .55rem;
+            font-size: .78rem;
+            font-weight: 800;
+        }
+
+        .badge.ok {
+            color: #166534;
+            background: #dcfce7;
+        }
+
+        .badge.error {
+            color: #991b1b;
+            background: #fee2e2;
+        }
+
+        .badge.procesando {
+            color: #92400e;
+            background: #fef3c7;
+        }
+
+        .mensaje {
+            display: none;
+            margin-top: 1rem;
+            padding: .85rem 1rem;
+            border-radius: 10px;
+            font-weight: 700;
+        }
+
+        .mensaje.ok {
+            display: block;
+            color: #166534;
+            background: #dcfce7;
+        }
+
+        .mensaje.error {
+            display: block;
+            color: #991b1b;
+            background: #fee2e2;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid #e5e7eb;
+            padding: .65rem .5rem;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            color: #6b7280;
+            font-size: .8rem;
+            text-transform: uppercase;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: #111827;
+            color: #f9fafb;
+            border-radius: 10px;
+            padding: 1rem;
+            overflow-x: auto;
+        }
+
+        summary {
+            cursor: pointer;
+            font-weight: 800;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="header-inner">
+            <h1>Detalle</h1>
+            <div class="header-actions">
+                <a class="btn btn-nav" href="{{ url_for('index') }}">Inicio</a>
+                <a class="btn btn-nav" href="{{ url_for('historial') }}">Historial</a>
+                <a class="btn btn-nav" href="{{ url_for('pedido') }}">Pedidos</a>
+                <a class="btn btn-nav" href="{{ url_for('asiento') }}">Asientos</a>
+                <a class="btn btn-nav" href="{{ url_for('estado_as400') }}">Estado AS/400</a>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section class="panel">
+            <div class="acciones">
+                <span class="badge {{ operacion.estado }}">{{ operacion.estado }}</span>
+                {% if operacion.estado == "error" %}
+                <button type="button" class="btn btn-peligro" id="btnReintentar">Reintentar</button>
+                {% endif %}
+            </div>
+
+            <div id="mensajeReintento" class="mensaje"></div>
+
+            <div class="grid" style="margin-top:1rem;">
+                <div class="dato">
+                    <span>ID</span>
+                    {{ operacion.id }}
+                </div>
+                <div class="dato">
+                    <span>Tipo</span>
+                    {{ "Pedido" if operacion.tipo == "pedido" else "Asiento" }}
+                </div>
+                <div class="dato">
+                    <span>Fecha registro</span>
+                    {{ operacion.fecha_creacion }}
+                </div>
+                <div class="dato">
+                    <span>Fecha operación</span>
+                    {{ operacion.fecha_operacion or "-" }}
+                </div>
+                <div class="dato">
+                    <span>Usuario</span>
+                    {{ operacion.usuario or "-" }}
+                </div>
+                <div class="dato">
+                    <span>Empresa</span>
+                    {{ operacion.empresa_nombre or operacion.empresa_id }}
+                </div>
+                <div class="dato">
+                    <span>Número AS/400</span>
+                    {{ operacion.numero or "-" }}
+                </div>
+                <div class="dato">
+                    <span>Idempotencia</span>
+                    {{ operacion.idempotency_key or "-" }}
+                </div>
+                {% if operacion.proveedor_codigo %}
+                <div class="dato">
+                    <span>Proveedor</span>
+                    {{ operacion.proveedor_codigo }} {{ operacion.proveedor_nombre }}
+                </div>
+                {% endif %}
+                {% if operacion.origen_reintento_id %}
+                <div class="dato">
+                    <span>Reintento de</span>
+                    <a href="{{ url_for('historial_detalle', operacion_id=operacion.origen_reintento_id) }}">{{ operacion.origen_reintento_id }}</a>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if operacion.error %}
+            <div class="mensaje error" style="display:block;">{{ operacion.error }}</div>
+            {% elif operacion.mensaje %}
+            <div class="mensaje ok" style="display:block;">{{ operacion.mensaje }}</div>
+            {% endif %}
+        </section>
+
+        <section class="panel">
+            <h2>Líneas</h2>
+            {% if operacion.lineas %}
+            <table>
+                <thead>
+                    {% if operacion.tipo == "pedido" %}
+                    <tr>
+                        <th>Código</th>
+                        <th>Descripción</th>
+                        <th>Cantidad</th>
+                        <th>UM</th>
+                        <th>Precio</th>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <th>Cuenta</th>
+                        <th>Fecha</th>
+                        <th>Importe</th>
+                        <th>Debe/Haber</th>
+                        <th>Concepto</th>
+                    </tr>
+                    {% endif %}
+                </thead>
+                <tbody>
+                    {% for linea in operacion.lineas %}
+                    {% if operacion.tipo == "pedido" %}
+                    <tr>
+                        <td>{{ linea.codigo_articulo }}</td>
+                        <td>{{ linea.descripcion or "-" }}</td>
+                        <td>{{ linea.cantidad }}</td>
+                        <td>{{ linea.unidadMedida or "-" }}</td>
+                        <td>{{ linea.precio or "-" }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td>{{ linea.cuenta }}</td>
+                        <td>{{ linea.fecha }}</td>
+                        <td>{{ "%.2f"|format(linea.importe) }}</td>
+                        <td>{{ linea.debe_haber }}</td>
+                        <td>{{ linea.concepto }}</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p>No hay líneas guardadas.</p>
+            {% endif %}
+        </section>
+
+        <section class="panel">
+            <details>
+                <summary>Datos técnicos</summary>
+                <h3>Payload</h3>
+                <pre>{{ operacion.payload|tojson(indent=2) }}</pre>
+                <h3>Resultado</h3>
+                <pre>{{ operacion.resultado|tojson(indent=2) }}</pre>
+            </details>
+        </section>
+    </main>
+
+    <script>
+        const btnReintentar = document.getElementById("btnReintentar");
+        const mensajeReintento = document.getElementById("mensajeReintento");
+
+        function mostrarMensaje(texto, tipo) {
+            if (!mensajeReintento) {
+                return;
+            }
+
+            mensajeReintento.textContent = texto;
+            mensajeReintento.className = `mensaje ${tipo}`;
+        }
+
+        if (btnReintentar) {
+            btnReintentar.addEventListener("click", async () => {
+                btnReintentar.disabled = true;
+                mostrarMensaje("Reintentando operación...", "ok");
+
+                try {
+                    const response = await fetch("{{ url_for('api_historial_reintentar', operacion_id=operacion.id) }}", {
+                        method: "POST",
+                    });
+                    const data = await response.json();
+
+                    if (!response.ok || !data.success) {
+                        if (data.historial_id && data.historial_id !== "{{ operacion.id }}") {
+                            window.location.href = `/historial/${encodeURIComponent(data.historial_id)}`;
+                            return;
+                        }
+
+                        throw new Error(data.mensaje || "No se pudo reintentar");
+                    }
+
+                    mostrarMensaje(
+                        data.numero_pedido
+                            ? `Pedido confirmado. Número: ${data.numero_pedido}`
+                            : data.numero_asiento
+                                ? `Asiento confirmado. Número: ${data.numero_asiento}`
+                                : data.mensaje || "Operación reintentada correctamente",
+                        "ok"
+                    );
+
+                    if (data.historial_id) {
+                        window.location.href = `/historial/${encodeURIComponent(data.historial_id)}`;
+                    }
+                } catch (error) {
+                    mostrarMensaje(error.message, "error");
+                    btnReintentar.disabled = false;
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>

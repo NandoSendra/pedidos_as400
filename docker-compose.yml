@@ -6,7 +6,14 @@ services:
       - "${FLASK_PORT:-5100}:5100"
     env_file:
       - .env
+    environment:
+      APP_HISTORIAL_FILE: /app/data/historial_operaciones.json
+      APP_ASIENTOS_EJEMPLOS_FILE: /app/data/asientos_ejemplos.json
     volumes:
       - ./users.json:/app/users.json
       - ./empresas.json:/app/empresas.json
+      - pedidos_data:/app/data
     restart: unless-stopped
+
+volumes:
+  pedidos_data:

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Inicio</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, Arial, sans-serif;
+            background: #f3f4f6;
+            color: #1f2937;
+        }
+
+        header {
+            background: #1e7883;
+            color: white;
+            padding: 1rem 1.5rem;
+        }
+
+        .header-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.4rem;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            flex-wrap: wrap;
+        }
+
+        .header-empresa select {
+            border: 2px solid rgba(255, 255, 255, .5);
+            border-radius: 8px;
+            padding: .45rem .55rem;
+            font-size: .95rem;
+            font-weight: 700;
+            color: #1e7883;
+            background: white;
+            max-width: 220px;
+        }
+
+        .header-usuario {
+            display: flex;
+            align-items: center;
+            gap: .65rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-nav,
+        .btn-logout {
+            color: white;
+            text-decoration: none;
+            background: rgba(255, 255, 255, .18);
+            padding: .45rem .75rem;
+            border-radius: 8px;
+            font-size: .9rem;
+            font-weight: 600;
+        }
+
+        .btn-nav:hover,
+        .btn-logout:hover {
+            background: rgba(255, 255, 255, .28);
+        }
+
+        main {
+            max-width: 960px;
+            margin: 2.5rem auto;
+            padding: 0 1.25rem 3rem;
+        }
+
+        .bienvenida {
+            margin-bottom: 2rem;
+        }
+
+        .bienvenida h2 {
+            margin: 0 0 .35rem;
+            font-size: 1.5rem;
+            color: #111827;
+        }
+
+        .bienvenida p {
+            margin: 0;
+            color: #6b7280;
+            font-size: 1rem;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 1.25rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 16px rgba(15, 23, 42, .08);
+            padding: 1.75rem 1.5rem 1.5rem;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            gap: .6rem;
+            border: 2px solid transparent;
+            transition: box-shadow .15s, border-color .15s, transform .1s;
+            position: relative;
+        }
+
+        .card:not(.card-proximamente):hover {
+            box-shadow: 0 8px 28px rgba(15, 23, 42, .14);
+            transform: translateY(-2px);
+        }
+
+        .card-pedidos { border-top: 4px solid #1e7883; }
+        .card-asientos { border-top: 4px solid #1d4ed8; }
+        .card-historial { border-top: 4px solid #7c3aed; }
+        .card-proximamente {
+            border-top: 4px solid #d1d5db;
+            opacity: .7;
+            cursor: default;
+        }
+
+        .card-pedidos:hover { border-color: #1e7883; }
+        .card-asientos:hover { border-color: #1d4ed8; }
+        .card-historial:hover { border-color: #7c3aed; }
+
+        .card-icon {
+            font-size: 2rem;
+            line-height: 1;
+            margin-bottom: .25rem;
+        }
+
+        .card h3 {
+            margin: 0;
+            font-size: 1.15rem;
+            color: #111827;
+        }
+
+        .card p {
+            margin: 0;
+            font-size: .9rem;
+            color: #6b7280;
+            line-height: 1.5;
+            flex: 1;
+        }
+
+        .card-action {
+            display: inline-block;
+            margin-top: .5rem;
+            font-size: .88rem;
+            font-weight: 700;
+        }
+
+        .card-pedidos .card-action { color: #1e7883; }
+        .card-asientos .card-action { color: #1d4ed8; }
+        .card-historial .card-action { color: #7c3aed; }
+
+        .badge-proximamente {
+            display: inline-block;
+            margin-top: .5rem;
+            background: #f3f4f6;
+            color: #9ca3af;
+            font-size: .8rem;
+            font-weight: 700;
+            padding: .3rem .65rem;
+            border-radius: 999px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .alerta {
+            margin-bottom: 1.5rem;
+            background: #fef3c7;
+            color: #92400e;
+            padding: .9rem 1rem;
+            border-radius: 10px;
+            font-size: .95rem;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="header-inner">
+            <h1>ERP · AS/400</h1>
+            <div class="header-actions">
+                {% if empresas | length > 1 %}
+                <label class="header-empresa" for="empresaSelector">
+                    <select id="empresaSelector">
+                        {% for empresa in empresas %}
+                        <option value="{{ empresa.id }}" {% if empresa_actual and empresa.id == empresa_actual.id %}selected{% endif %}>{{ empresa.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                {% elif empresa_actual %}
+                <span>{{ empresa_actual.nombre }}</span>
+                {% endif %}
+                {% if auth_enabled and usuario %}
+                <div class="header-usuario">
+                    {% if es_admin %}
+                    <a class="btn-logout" href="{{ url_for('admin_usuarios') }}">Usuarios</a>
+                    {% endif %}
+                    <a class="btn-logout" href="{{ url_for('cuenta_password') }}">Contraseña</a>
+                    <span>{{ usuario }}</span>
+                    <a class="btn-logout" href="{{ url_for('logout') }}">Salir</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    <main>
+        {% if error %}
+        <div class="alerta">{{ error }}</div>
+        {% endif %}
+
+        <div class="bienvenida">
+            <h2>¿Qué quieres hacer{% if empresa_actual %} en {{ empresa_actual.nombre }}{% endif %}?</h2>
+            <p>Selecciona una función para empezar.</p>
+        </div>
+
+        <div class="cards">
+
+            <a class="card card-pedidos" href="{{ url_for('pedido') }}">
+                <div class="card-icon">📦</div>
+                <h3>Pedidos</h3>
+                <p>Crear órdenes de compra a proveedores y consultar stock.</p>
+                <span class="card-action">Nuevo pedido →</span>
+            </a>
+
+            <a class="card card-asientos" href="{{ url_for('asiento') }}">
+                <div class="card-icon">📒</div>
+                <h3>Asientos contables</h3>
+                <p>Registrar asientos con asistente IA, importación CSV y Norma 43.</p>
+                <span class="card-action">Nuevo asiento →</span>
+            </a>
+
+            <a class="card card-historial" href="{{ url_for('historial') }}">
+                <div class="card-icon">📋</div>
+                <h3>Historial</h3>
+                <p>Consultar pedidos y asientos anteriores. Reintentar operaciones fallidas.</p>
+                <span class="card-action">Ver historial →</span>
+            </a>
+
+            <div class="card card-proximamente">
+                <div class="card-icon">🔍</div>
+                <h3>Consultas e informes</h3>
+                <p>Extraer datos del ERP: facturas, saldos, movimientos y más.</p>
+                <span class="badge-proximamente">Próximamente</span>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        const selector = document.getElementById("empresaSelector");
+        if (selector) {
+            selector.addEventListener("change", () => {
+                fetch("/api/empresa", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ empresa_id: selector.value }),
+                }).then(r => r.json()).then(data => {
+                    if (data.success) location.reload();
+                    else alert(data.mensaje || "Error cambiando empresa");
+                });
+            });
+        }
+    </script>
+</body>
+
+</html>

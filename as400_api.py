@@ -1,8 +1,103 @@
+import json
+import re
+import time
+from collections import deque
+from copy import deepcopy
+from datetime import datetime, timezone
+from threading import Lock
+
 import requests
 from urllib.parse import urlencode
 
 from config import Config
-from empresas_store import endpoint_path
+from empresas_store import contabilidad_base_url, endpoint_path
+
+from as400_api_cuentas import normalizar_registro_cuenta
+from cuenta_tipos import enriquecer_cuenta
+
+CONTABILIDAD_OPERACIONES = frozenset({"cuentas", "crear_asiento"})
+_STATUS_LOCK = Lock()
+_AS400_STATUS = {
+    "servicios": {},
+    "operaciones": {},
+    "errores_recientes": deque(maxlen=25),
+}
+
+
+def _ahora_iso():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _servicio_operacion(operacion):
+    return "contabilidad" if operacion in CONTABILIDAD_OPERACIONES else "pedidos"
+
+
+def _estado_inicial(nombre):
+    return {
+        "nombre": nombre,
+        "estado": "sin_datos",
+        "ultima_ok": "",
+        "ultimo_error": "",
+        "ultimo_error_fecha": "",
+        "ultima_respuesta_ms": None,
+        "total_ok": 0,
+        "total_error": 0,
+        "empresa_id": "",
+        "empresa_nombre": "",
+        "operacion": "",
+    }
+
+
+def _registrar_estado_as400(empresa, operacion, ok, respuesta_ms, error=""):
+    ahora = _ahora_iso()
+    servicio = _servicio_operacion(operacion)
+    empresa_id = str((empresa or {}).get("id") or "default")
+    empresa_nombre = str((empresa or {}).get("nombre") or empresa_id)
+
+    with _STATUS_LOCK:
+        for clave, nombre in (
+            (servicio, servicio),
+            (operacion, operacion),
+        ):
+            store = (
+                _AS400_STATUS["servicios"]
+                if clave == servicio
+                else _AS400_STATUS["operaciones"]
+            )
+            estado = store.setdefault(clave, _estado_inicial(nombre))
+            estado["estado"] = "ok" if ok else "error"
+            estado["ultima_respuesta_ms"] = respuesta_ms
+            estado["empresa_id"] = empresa_id
+            estado["empresa_nombre"] = empresa_nombre
+            estado["operacion"] = operacion
+
+            if ok:
+                estado["ultima_ok"] = ahora
+                estado["total_ok"] += 1
+            else:
+                estado["ultimo_error"] = error
+                estado["ultimo_error_fecha"] = ahora
+                estado["total_error"] += 1
+
+        if not ok:
+            _AS400_STATUS["errores_recientes"].appendleft({
+                "fecha": ahora,
+                "servicio": servicio,
+                "operacion": operacion,
+                "empresa_id": empresa_id,
+                "empresa_nombre": empresa_nombre,
+                "respuesta_ms": respuesta_ms,
+                "error": str(error or "")[:500],
+            })
+
+
+def get_as400_status():
+    with _STATUS_LOCK:
+        return {
+            "servicios": deepcopy(_AS400_STATUS["servicios"]),
+            "operaciones": deepcopy(_AS400_STATUS["operaciones"]),
+            "errores_recientes": list(_AS400_STATUS["errores_recientes"]),
+        }
 
 
 class AS400ApiError(Exception):
@@ -55,8 +150,19 @@ def _get_auth(empresa):
     return None
 
 
-def _build_url(empresa, endpoint, params=None):
-    base_url = str(empresa.get("base_url", "")).rstrip("/")
+def _resolve_base_url(empresa, operacion):
+    if operacion in CONTABILIDAD_OPERACIONES:
+        return contabilidad_base_url(empresa)
+
+    return str(empresa.get("base_url", "")).strip().rstrip("/") or None
+
+
+def _build_url(empresa, endpoint, params=None, operacion=None):
+    base_url = _resolve_base_url(empresa, operacion)
+
+    if not base_url:
+        raise AS400ApiError("No hay URL base configurada para la petición")
+
     url = f"{base_url}/{endpoint.lstrip('/')}"
 
     if params:
@@ -67,12 +173,34 @@ def _build_url(empresa, endpoint, params=None):
     return url
 
 
+def _parse_json_response(response):
+    try:
+        return response.json()
+    except ValueError:
+        texto = response.text.replace("\x1e", "").replace("\x1d", "")
+        texto = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", texto)
+
+        try:
+            return json.loads(texto)
+        except ValueError:
+            raise AS400ApiError(
+                f"El AS/400 no devolvió JSON válido: {response.text[:500]}"
+            )
+
+
 def _request(empresa, method, operacion, params=None, **kwargs):
-    if not empresa or not empresa.get("base_url"):
+    if not empresa:
+        raise AS400ApiError("No hay empresa configurada para la petición")
+
+    if not _resolve_base_url(empresa, operacion):
         raise AS400ApiError("No hay empresa configurada para la petición")
 
     endpoint = endpoint_path(empresa, operacion)
-    url = _build_url(empresa, endpoint, params)
+    url = _build_url(empresa, endpoint, params, operacion=operacion)
+    inicio = time.perf_counter()
+
+    def respuesta_ms():
+        return int(round((time.perf_counter() - inicio) * 1000))
 
     try:
         response = requests.request(
@@ -84,22 +212,31 @@ def _request(empresa, method, operacion, params=None, **kwargs):
         )
 
     except requests.RequestException as e:
-        raise AS400ApiError(f"No se pudo conectar con el AS/400: {e}")
+        mensaje = f"No se pudo conectar con el AS/400: {e}"
+        _registrar_estado_as400(empresa, operacion, False, respuesta_ms(), mensaje)
+        raise AS400ApiError(mensaje)
 
     if response.status_code >= 400:
         mensaje = response.text.strip() or f"Error HTTP {response.status_code}"
+        _registrar_estado_as400(empresa, operacion, False, respuesta_ms(), mensaje)
         raise AS400ApiError(mensaje)
 
     try:
-        data = response.json()
+        data = _parse_json_response(response)
+    except AS400ApiError as error:
+        _registrar_estado_as400(empresa, operacion, False, respuesta_ms(), str(error))
+        raise
     except ValueError:
-        raise AS400ApiError(
-            f"El AS/400 no devolvió JSON válido: {response.text}"
-        )
+        mensaje = f"El AS/400 no devolvió JSON válido: {response.text[:500]}"
+        _registrar_estado_as400(empresa, operacion, False, respuesta_ms(), mensaje)
+        raise AS400ApiError(mensaje)
 
     if data.get("success") is False:
-        raise AS400ApiError(data.get("mensaje", "Error devuelto por AS/400"))
+        mensaje = data.get("mensaje", "Error devuelto por AS/400")
+        _registrar_estado_as400(empresa, operacion, False, respuesta_ms(), mensaje)
+        raise AS400ApiError(mensaje)
 
+    _registrar_estado_as400(empresa, operacion, True, respuesta_ms())
     return data
 
 
@@ -248,6 +385,56 @@ def obtener_proveedores(empresa):
     return proveedores[:num_proveedores]
 
 
+def _normalizar_cuenta(cuenta):
+    return normalizar_registro_cuenta(cuenta)
+
+
+def _extraer_lista_cuentas(data):
+    salida = data.get("salida")
+
+    if isinstance(salida, dict) and salida.get("cuentas") is not None:
+        return salida.get("cuentas", [])
+
+    if data.get("IAERP_Get_cuentas_R") is not None:
+        return data.get("IAERP_Get_cuentas_R", [])
+
+    for valor in data.values():
+        if isinstance(valor, list):
+            return valor
+
+    return []
+
+
+def obtener_cuentas(empresa):
+    data = _request(empresa, "GET", "cuentas")
+
+    salida = data.get("salida")
+
+    if isinstance(salida, dict) and salida.get("cuentas") is None:
+        if not _success_ok(salida.get("success")):
+            raise AS400ApiError("Error obteniendo cuentas contables")
+
+    cuentas = _extraer_lista_cuentas(data)
+
+    if isinstance(salida, dict) and salida.get("cuentas") is not None:
+        try:
+            num_cuentas = int(salida.get("numCuentas", len(cuentas)))
+        except (TypeError, ValueError):
+            num_cuentas = len(cuentas)
+
+        cuentas = cuentas[:num_cuentas]
+
+    validas = []
+
+    for cuenta in cuentas:
+        normalizada = _normalizar_cuenta(cuenta)
+
+        if normalizada["codigo"]:
+            validas.append(enriquecer_cuenta(normalizada))
+
+    return validas
+
+
 def crear_pedido(empresa, proveedor_codigo, usuario, carrito):
     lineas = [
         {
@@ -278,4 +465,62 @@ def crear_pedido(empresa, proveedor_codigo, usuario, carrito):
         "success": True,
         "numero_pedido": salida.get("numero_pedido"),
         "mensaje": salida.get("mensaje", "Pedido creado correctamente")
+    }
+
+
+def normalizar_fecha_asiento(fecha):
+    texto = str(fecha or "").strip().replace("-", "")
+
+    if not texto:
+        raise AS400ApiError("Falta la fecha del asiento")
+
+    if len(texto) != 8 or not texto.isdigit():
+        raise AS400ApiError("La fecha del asiento no es válida")
+
+    return texto
+
+
+def normalizar_debe_haber(valor):
+    texto = str(valor or "").strip().upper()
+
+    if texto in ("D", "DEBE"):
+        return "D"
+
+    if texto in ("H", "HABER"):
+        return "H"
+
+    raise AS400ApiError("Debe/Haber debe ser D o H")
+
+
+def crear_asiento_contable(empresa, usuario, lineas):
+    lineas_payload = []
+
+    for linea in lineas:
+        lineas_payload.append({
+            "cuenta": str(linea["cuenta"]).strip(),
+            "fecha": normalizar_fecha_asiento(linea["fecha"]),
+            "importe": float(linea["importe"]),
+            "debe_haber": normalizar_debe_haber(linea["debe_haber"]),
+            "concepto": str(linea["concepto"]).strip(),
+        })
+
+    payload = {
+        "usuario": usuario,
+        "numLineasIn": len(lineas_payload),
+        "lineas": lineas_payload,
+    }
+
+    data = _request(empresa, "POST", "crear_asiento", json=payload)
+
+    salida = data.get("salida", data)
+
+    if not _success_ok(salida.get("success")):
+        raise AS400ApiError(
+            salida.get("mensaje", "Error creando asiento contable")
+        )
+
+    return {
+        "success": True,
+        "numero_asiento": salida.get("numero_asiento"),
+        "mensaje": salida.get("mensaje", "Asiento creado correctamente"),
     }

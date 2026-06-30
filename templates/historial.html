@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Historial de operaciones</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, Arial, sans-serif;
+            background: #f3f4f6;
+            color: #1f2937;
+        }
+
+        header {
+            background: #1e7883;
+            color: white;
+            padding: 1rem 1.5rem;
+        }
+
+        .header-inner,
+        .header-actions,
+        .filtros,
+        .acciones {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            flex-wrap: wrap;
+        }
+
+        .header-inner {
+            justify-content: space-between;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.4rem;
+        }
+
+        .btn-nav,
+        .btn {
+            border: none;
+            border-radius: 8px;
+            padding: .55rem .8rem;
+            font-weight: 700;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .btn-nav {
+            color: white;
+            background: rgba(255, 255, 255, .18);
+        }
+
+        .btn {
+            color: white;
+            background: #1e7883;
+        }
+
+        .btn-secundario {
+            color: #1e7883;
+            background: #d9f0f2;
+        }
+
+        main {
+            max-width: 1280px;
+            margin: 1.5rem auto;
+            padding: 0 1rem 2rem;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, .08);
+            padding: 1rem;
+        }
+
+        .filtros {
+            align-items: flex-end;
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: grid;
+            gap: .25rem;
+            font-size: .82rem;
+            font-weight: 700;
+            color: #4b5563;
+        }
+
+        input,
+        select {
+            min-width: 130px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: .55rem .65rem;
+            font: inherit;
+        }
+
+        .busqueda {
+            min-width: 260px;
+        }
+
+        .resumen {
+            color: #6b7280;
+            font-size: .9rem;
+            margin: 0 0 .75rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid #e5e7eb;
+            padding: .65rem .5rem;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            color: #6b7280;
+            font-size: .8rem;
+            text-transform: uppercase;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: .25rem .55rem;
+            font-size: .78rem;
+            font-weight: 800;
+        }
+
+        .badge.ok {
+            color: #166534;
+            background: #dcfce7;
+        }
+
+        .badge.error {
+            color: #991b1b;
+            background: #fee2e2;
+        }
+
+        .badge.procesando {
+            color: #92400e;
+            background: #fef3c7;
+        }
+
+        .muted {
+            color: #6b7280;
+            font-size: .86rem;
+        }
+
+        .vacio {
+            color: #6b7280;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        @media (max-width: 800px) {
+            table,
+            thead,
+            tbody,
+            tr,
+            th,
+            td {
+                display: block;
+            }
+
+            thead {
+                display: none;
+            }
+
+            tr {
+                border: 1px solid #e5e7eb;
+                border-radius: 10px;
+                margin-bottom: .75rem;
+                padding: .5rem;
+            }
+
+            td {
+                border: none;
+                padding: .35rem 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="header-inner">
+            <h1>Historial</h1>
+            <div class="header-actions">
+                <a class="btn-nav" href="{{ url_for('index') }}">Inicio</a>
+                <a class="btn-nav" href="{{ url_for('pedido') }}">Pedidos</a>
+                <a class="btn-nav" href="{{ url_for('asiento') }}">Asientos</a>
+                <a class="btn-nav" href="{{ url_for('estado_as400') }}">Estado AS/400</a>
+                {% if auth_enabled and usuario %}
+                <span>{{ usuario }}</span>
+                <a class="btn-nav" href="{{ url_for('logout') }}">Salir</a>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section class="panel">
+            <form class="filtros" method="GET" action="{{ url_for('historial') }}">
+                <label>
+                    Tipo
+                    <select name="tipo">
+                        <option value="" {% if not filtros.tipo %}selected{% endif %}>Todos</option>
+                        <option value="pedido" {% if filtros.tipo == "pedido" %}selected{% endif %}>Pedidos</option>
+                        <option value="asiento" {% if filtros.tipo == "asiento" %}selected{% endif %}>Asientos</option>
+                    </select>
+                </label>
+
+                <label>
+                    Estado
+                    <select name="estado">
+                        <option value="" {% if not filtros.estado %}selected{% endif %}>Todos</option>
+                        <option value="ok" {% if filtros.estado == "ok" %}selected{% endif %}>Correcto</option>
+                        <option value="error" {% if filtros.estado == "error" %}selected{% endif %}>Error</option>
+                        <option value="procesando" {% if filtros.estado == "procesando" %}selected{% endif %}>Procesando</option>
+                    </select>
+                </label>
+
+                <label>
+                    Empresa
+                    <select name="empresa_id">
+                        <option value="" {% if not filtros.empresa_id %}selected{% endif %}>Todas</option>
+                        {% for empresa in empresas %}
+                        <option value="{{ empresa.id }}" {% if filtros.empresa_id == empresa.id %}selected{% endif %}>
+                            {{ empresa.nombre }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </label>
+
+                <label>
+                    Usuario
+                    <input type="search" name="usuario" value="{{ filtros.usuario }}" placeholder="usuario">
+                </label>
+
+                <label>
+                    Desde
+                    <input type="date" name="desde" value="{{ filtros.desde }}">
+                </label>
+
+                <label>
+                    Hasta
+                    <input type="date" name="hasta" value="{{ filtros.hasta }}">
+                </label>
+
+                <label>
+                    Buscar
+                    <input class="busqueda" type="search" name="q" value="{{ filtros.q }}" placeholder="número, cuenta, artículo, error...">
+                </label>
+
+                <div class="acciones">
+                    <button class="btn" type="submit">Filtrar</button>
+                    <a class="btn btn-secundario" href="{{ url_for('historial') }}">Limpiar</a>
+                    <a class="btn btn-secundario" href="{{ url_for('historial_export') }}{% if query_string %}?{{ query_string }}{% endif %}">Exportar CSV</a>
+                </div>
+            </form>
+
+            <p class="resumen">
+                Mostrando {{ operaciones|length }} de {{ total_operaciones }} operación(es).
+            </p>
+
+            {% if operaciones %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Tipo</th>
+                        <th>Estado</th>
+                        <th>Empresa</th>
+                        <th>Usuario</th>
+                        <th>Referencia</th>
+                        <th>Líneas</th>
+                        <th>Mensaje</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for operacion in operaciones %}
+                    <tr>
+                        <td>
+                            {{ operacion.fecha_creacion }}
+                            {% if operacion.fecha_operacion %}
+                            <div class="muted">Operación: {{ operacion.fecha_operacion }}</div>
+                            {% endif %}
+                        </td>
+                        <td>{{ "Pedido" if operacion.tipo == "pedido" else "Asiento" }}</td>
+                        <td>
+                            <span class="badge {{ operacion.estado }}">{{ operacion.estado }}</span>
+                        </td>
+                        <td>
+                            {{ operacion.empresa_nombre or operacion.empresa_id }}
+                            <div class="muted">{{ operacion.empresa_id }}</div>
+                        </td>
+                        <td>{{ operacion.usuario or "-" }}</td>
+                        <td>
+                            {% if operacion.numero %}
+                            Nº {{ operacion.numero }}
+                            {% elif operacion.proveedor_codigo %}
+                            Proveedor {{ operacion.proveedor_codigo }}
+                            {% else %}
+                            -
+                            {% endif %}
+                            {% if operacion.proveedor_nombre %}
+                            <div class="muted">{{ operacion.proveedor_nombre }}</div>
+                            {% endif %}
+                        </td>
+                        <td>{{ (operacion.lineas or [])|length }}</td>
+                        <td>
+                            {{ operacion.error or operacion.mensaje or "-" }}
+                        </td>
+                        <td>
+                            <a class="btn btn-secundario" href="{{ url_for('historial_detalle', operacion_id=operacion.id) }}">Detalle</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="vacio">No hay operaciones con esos filtros.</div>
+            {% endif %}
+        </section>
+    </main>
+</body>
+
+</html>

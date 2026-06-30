@@ -3,12 +3,26 @@ from pathlib import Path
 
 from config import Config
 
+CONTABILIDAD_OPERACIONES = frozenset({"cuentas", "crear_asiento"})
+
 DEFAULT_ENDPOINTS = {
     "proveedores": "/proveedores",
     "articulos": "/articulos",
     "stocks": "/stocks",
     "crear_pedido": "/pedidos/crear",
+    "crear_asiento": "/asientos/crear",
+    "cuentas": "/cuentas",
 }
+
+
+def contabilidad_base_url(empresa):
+    url = (
+        str(empresa.get("contabilidad_base_url") or "").strip().rstrip("/")
+        or str(Config.AS400_CONTABILIDAD_BASE_URL or "").strip().rstrip("/")
+        or str(empresa.get("base_url", "")).strip().rstrip("/")
+    )
+
+    return url or None
 
 
 def empresas_file_path():
@@ -43,6 +57,7 @@ def _empresa_from_env():
         "id": "default",
         "nombre": "Principal",
         "base_url": Config.AS400_API_BASE_URL,
+        "contabilidad_base_url": Config.AS400_CONTABILIDAD_BASE_URL,
         "endpoints": dict(DEFAULT_ENDPOINTS),
         "api_user": Config.AS400_API_USER,
         "api_password": Config.AS400_API_PASSWORD,

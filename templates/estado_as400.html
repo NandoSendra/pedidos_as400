@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Estado AS/400</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, Arial, sans-serif;
+            background: #f3f4f6;
+            color: #1f2937;
+        }
+
+        header {
+            background: #1e7883;
+            color: white;
+            padding: 1rem 1.5rem;
+        }
+
+        .header-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        h1,
+        h2,
+        h3,
+        p {
+            margin-top: 0;
+        }
+
+        h1 {
+            margin-bottom: .15rem;
+            font-size: 1.45rem;
+        }
+
+        .header-sub {
+            margin: 0;
+            color: rgba(255, 255, 255, .82);
+            font-weight: 600;
+        }
+
+        .nav {
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            border-radius: 8px;
+            padding: .65rem .9rem;
+            cursor: pointer;
+            font-weight: 800;
+            text-decoration: none;
+        }
+
+        .btn-nav {
+            border: 2px solid rgba(255, 255, 255, .5);
+            color: white;
+            background: transparent;
+        }
+
+        .btn-nav:hover {
+            background: rgba(255, 255, 255, .15);
+        }
+
+        .btn-primary {
+            background: #1e7883;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        main {
+            padding: 1rem;
+            display: grid;
+            gap: 1rem;
+            max-width: 1180px;
+            margin: 0 auto;
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            background: white;
+            border-radius: 12px;
+            padding: 1rem;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .06);
+            flex-wrap: wrap;
+        }
+
+        .toolbar p {
+            margin: .25rem 0 0;
+            color: #6b7280;
+            font-size: .92rem;
+        }
+
+        .mensaje {
+            padding: .85rem 1rem;
+            border-radius: 10px;
+            font-weight: 700;
+        }
+
+        .mensaje[hidden] {
+            display: none;
+        }
+
+        .mensaje.ok {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .mensaje.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1rem;
+        }
+
+        .card,
+        .panel {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .05);
+        }
+
+        .card h2,
+        .panel h2 {
+            font-size: 1rem;
+            margin-bottom: .7rem;
+        }
+
+        .estado {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: .25rem .55rem;
+            font-size: .78rem;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+
+        .estado.ok {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .estado.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .estado.sin_datos {
+            background: #e5e7eb;
+            color: #4b5563;
+        }
+
+        .dato {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: .8rem;
+            border-top: 1px solid #f3f4f6;
+            padding-top: .6rem;
+            margin-top: .6rem;
+            font-size: .9rem;
+        }
+
+        .dato span:first-child {
+            color: #6b7280;
+        }
+
+        .dato strong,
+        .dato span:last-child {
+            text-align: right;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .9rem;
+        }
+
+        th,
+        td {
+            padding: .7rem;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            color: #4b5563;
+            font-size: .78rem;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+
+        .error-text {
+            max-width: 520px;
+            color: #991b1b;
+            word-break: break-word;
+        }
+
+        @media (max-width: 720px) {
+            main {
+                padding: .75rem;
+            }
+
+            .toolbar {
+                align-items: stretch;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="header-inner">
+            <div>
+                <h1>Estado AS/400</h1>
+                <p class="header-sub">
+                    {{ empresa_actual.nombre if empresa_actual else "Sin empresa seleccionada" }}
+                </p>
+            </div>
+            <nav class="nav">
+                <a class="btn btn-nav" href="{{ url_for('index') }}">Inicio</a>
+                <a class="btn btn-nav" href="{{ url_for('pedido') }}">Pedidos</a>
+                <a class="btn btn-nav" href="{{ url_for('asiento') }}">Asientos</a>
+                <a class="btn btn-nav" href="{{ url_for('historial') }}">Historial</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="toolbar">
+            <div>
+                <h2>Conexiones y cargas</h2>
+                <p>Los datos se actualizan con las llamadas reales de la aplicación y con la prueba manual.</p>
+            </div>
+            <div style="display:flex; gap:.6rem; flex-wrap:wrap;">
+                <button type="button" class="btn btn-primary" id="btnProbar">Probar ahora</button>
+                <button type="button" class="btn btn-secondary" id="btnRefrescar">Refrescar</button>
+            </div>
+        </section>
+
+        <div id="mensaje" class="mensaje" hidden></div>
+
+        {% if error %}
+        <div class="mensaje error">{{ error }}</div>
+        {% endif %}
+
+        <section class="grid" id="serviciosGrid"></section>
+
+        <section class="panel">
+            <h2>Operaciones instrumentadas</h2>
+            <div id="operacionesTabla"></div>
+        </section>
+
+        <section class="panel">
+            <h2>Errores recientes</h2>
+            <div id="erroresTabla"></div>
+        </section>
+    </main>
+
+    <script>
+        let estadoActual = {{ estado|tojson }};
+        const serviciosGrid = document.getElementById("serviciosGrid");
+        const operacionesTabla = document.getElementById("operacionesTabla");
+        const erroresTabla = document.getElementById("erroresTabla");
+        const mensaje = document.getElementById("mensaje");
+        const btnProbar = document.getElementById("btnProbar");
+        const btnRefrescar = document.getElementById("btnRefrescar");
+
+        function escapeHtml(texto) {
+            return String(texto ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        function fechaLocal(valor) {
+            if (!valor) {
+                return "Sin datos";
+            }
+
+            const fecha = new Date(valor);
+
+            if (Number.isNaN(fecha.getTime())) {
+                return valor;
+            }
+
+            return fecha.toLocaleString("es-ES");
+        }
+
+        function estadoTexto(estado) {
+            const mapa = {
+                ok: "OK",
+                error: "Error",
+                sin_datos: "Sin datos",
+            };
+
+            return mapa[estado] || estado || "Sin datos";
+        }
+
+        function servicioVacio(nombre) {
+            return {
+                nombre,
+                estado: "sin_datos",
+                ultima_ok: "",
+                ultimo_error: "",
+                ultimo_error_fecha: "",
+                ultima_respuesta_ms: null,
+                total_ok: 0,
+                total_error: 0,
+                empresa_nombre: "",
+                operacion: "",
+            };
+        }
+
+        function renderServicio(titulo, estado) {
+            const respuesta = estado.ultima_respuesta_ms === null || estado.ultima_respuesta_ms === undefined
+                ? "Sin datos"
+                : `${estado.ultima_respuesta_ms} ms`;
+
+            return `
+                <article class="card">
+                    <h2>${escapeHtml(titulo)}</h2>
+                    <span class="estado ${escapeHtml(estado.estado || "sin_datos")}">${escapeHtml(estadoTexto(estado.estado))}</span>
+                    <div class="dato"><span>Última OK</span><strong>${escapeHtml(fechaLocal(estado.ultima_ok))}</strong></div>
+                    <div class="dato"><span>Respuesta</span><strong>${escapeHtml(respuesta)}</strong></div>
+                    <div class="dato"><span>Aciertos</span><strong>${Number(estado.total_ok || 0)}</strong></div>
+                    <div class="dato"><span>Errores</span><strong>${Number(estado.total_error || 0)}</strong></div>
+                    <div class="dato"><span>Último error</span><strong>${escapeHtml(estado.ultimo_error || "Sin errores")}</strong></div>
+                </article>
+            `;
+        }
+
+        function renderServicios(estado) {
+            const servicios = estado.servicios || {};
+            const cache = estado.cache_cuentas;
+            const cuentaCacheHtml = cache
+                ? `
+                    <article class="card">
+                        <h2>Última carga de cuentas</h2>
+                        <span class="estado ok">Cache</span>
+                        <div class="dato"><span>Fecha</span><strong>${escapeHtml(fechaLocal(cache.loaded_at))}</strong></div>
+                        <div class="dato"><span>Cuentas</span><strong>${Number(cache.num_cuentas || 0)}</strong></div>
+                        <div class="dato"><span>Caduca en</span><strong>${Number(cache.caduca_en_seconds || 0)} s</strong></div>
+                    </article>
+                `
+                : `
+                    <article class="card">
+                        <h2>Última carga de cuentas</h2>
+                        <span class="estado sin_datos">Sin datos</span>
+                        <div class="dato"><span>Fecha</span><strong>Sin datos</strong></div>
+                        <div class="dato"><span>Cuentas</span><strong>0</strong></div>
+                    </article>
+                `;
+
+            serviciosGrid.innerHTML = [
+                renderServicio("Conexión pedidos", servicios.pedidos || servicioVacio("pedidos")),
+                renderServicio("Conexión contabilidad", servicios.contabilidad || servicioVacio("contabilidad")),
+                cuentaCacheHtml,
+            ].join("");
+        }
+
+        function renderOperaciones(estado) {
+            const operaciones = Object.values(estado.operaciones || {})
+                .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)));
+
+            if (!operaciones.length) {
+                operacionesTabla.innerHTML = "<p style=\"color:#6b7280;\">Sin llamadas registradas todavía.</p>";
+                return;
+            }
+
+            operacionesTabla.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Operación</th>
+                            <th>Estado</th>
+                            <th>Última OK</th>
+                            <th>Respuesta</th>
+                            <th>Errores</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${operaciones.map(op => `
+                            <tr>
+                                <td>${escapeHtml(op.nombre)}</td>
+                                <td><span class="estado ${escapeHtml(op.estado || "sin_datos")}">${escapeHtml(estadoTexto(op.estado))}</span></td>
+                                <td>${escapeHtml(fechaLocal(op.ultima_ok))}</td>
+                                <td>${op.ultima_respuesta_ms === null || op.ultima_respuesta_ms === undefined ? "Sin datos" : `${op.ultima_respuesta_ms} ms`}</td>
+                                <td>${Number(op.total_error || 0)}</td>
+                            </tr>
+                        `).join("")}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function renderErrores(estado) {
+            const errores = estado.errores_recientes || [];
+
+            if (!errores.length) {
+                erroresTabla.innerHTML = "<p style=\"color:#6b7280;\">Sin errores recientes.</p>";
+                return;
+            }
+
+            erroresTabla.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Servicio</th>
+                            <th>Operación</th>
+                            <th>Error</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${errores.map(error => `
+                            <tr>
+                                <td>${escapeHtml(fechaLocal(error.fecha))}</td>
+                                <td>${escapeHtml(error.servicio)}</td>
+                                <td>${escapeHtml(error.operacion)}</td>
+                                <td class="error-text">${escapeHtml(error.error)}</td>
+                            </tr>
+                        `).join("")}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function renderEstado(estado) {
+            estadoActual = estado;
+            renderServicios(estado);
+            renderOperaciones(estado);
+            renderErrores(estado);
+        }
+
+        function mostrarMensaje(texto, tipo) {
+            mensaje.textContent = texto;
+            mensaje.className = `mensaje ${tipo}`;
+            mensaje.hidden = false;
+        }
+
+        async function refrescarEstado() {
+            const response = await fetch("/api/estado-as400");
+            const data = await response.json();
+            renderEstado(data.estado || {});
+        }
+
+        btnRefrescar.addEventListener("click", async () => {
+            try {
+                await refrescarEstado();
+                mostrarMensaje("Estado actualizado.", "ok");
+            } catch (error) {
+                mostrarMensaje(error.message, "error");
+            }
+        });
+
+        btnProbar.addEventListener("click", async () => {
+            btnProbar.disabled = true;
+            mostrarMensaje("Probando conexiones AS/400...", "ok");
+
+            try {
+                const response = await fetch("/api/estado-as400/probar", { method: "POST" });
+                const data = await response.json();
+                renderEstado(data.estado || {});
+
+                if (!response.ok || !data.success) {
+                    const resultados = data.resultados || {};
+                    const errores = Object.values(resultados)
+                        .filter(resultado => !resultado.success)
+                        .map(resultado => resultado.mensaje)
+                        .join(" · ");
+                    throw new Error(errores || data.mensaje || "La prueba ha fallado");
+                }
+
+                mostrarMensaje("Conexiones comprobadas correctamente.", "ok");
+            } catch (error) {
+                mostrarMensaje(error.message, "error");
+            } finally {
+                btnProbar.disabled = false;
+            }
+        });
+
+        renderEstado(estadoActual || {});
+    </script>
+</body>
+
+</html>

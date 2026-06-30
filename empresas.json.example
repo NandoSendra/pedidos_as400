@@ -4,11 +4,14 @@
       "id": "1",
       "nombre": "Casa Ricardo",
       "base_url": "http://80.28.249.31:10014/web/services/PEDIDOS",
+      "contabilidad_base_url": "http://80.28.249.31:10014/web/services/IAERP",
       "endpoints": {
         "proveedores": "/proveedores",
         "articulos": "/articulos",
         "stocks": "/stocks",
-        "crear_pedido": "/pedidos/crear"
+        "crear_pedido": "/pedidos/crear",
+        "crear_asiento": "/asientos/crear",
+        "cuentas": "/cuentas"
       },
       "api_user": "",
       "api_password": "",

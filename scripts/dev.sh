@@ -16,6 +16,11 @@ if [[ ! -f .env ]]; then
     echo "Creado .env desde .env.example. Revisa los valores antes de continuar."
 fi
 
+if [[ ! -f asientos_ejemplos.json && -f asientos_ejemplos.json.example ]]; then
+    cp asientos_ejemplos.json.example asientos_ejemplos.json
+    echo "Creado asientos_ejemplos.json desde asientos_ejemplos.json.example."
+fi
+
 export FLASK_DEBUG="${FLASK_DEBUG:-true}"
 
 echo "Desarrollo en http://127.0.0.1:${FLASK_PORT:-5100}/pedido"

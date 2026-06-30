@@ -8,10 +8,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 COPY requirements-prod.txt .
 RUN pip install --no-cache-dir -r requirements-prod.txt
 
-COPY app.py as400_api.py auth.py config.py users_store.py empresas_store.py empresa_session.py wsgi.py ./
+COPY *.py ./
+COPY *.json.example ./
 COPY templates/ templates/
 COPY static/ static/
 
 EXPOSE 5100
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5100", "--workers", "2", "--timeout", "60", "wsgi:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5100", "--workers", "1", "--threads", "4", "--worker-class", "gthread", "--timeout", "130", "wsgi:app"]

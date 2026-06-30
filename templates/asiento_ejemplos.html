@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Ejemplos IA</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, Arial, sans-serif;
+            background: #f3f4f6;
+            color: #1f2937;
+        }
+
+        header {
+            background: #1e7883;
+            color: white;
+            padding: 1rem 1.5rem;
+        }
+
+        .header-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        h1,
+        h2,
+        h3,
+        p {
+            margin-top: 0;
+        }
+
+        h1 {
+            margin-bottom: .15rem;
+            font-size: 1.45rem;
+        }
+
+        .header-sub {
+            margin: 0;
+            color: rgba(255, 255, 255, .82);
+            font-weight: 600;
+        }
+
+        .nav {
+            display: flex;
+            gap: .6rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            border-radius: 8px;
+            padding: .65rem .85rem;
+            cursor: pointer;
+            font-weight: 800;
+            text-decoration: none;
+        }
+
+        .btn-nav {
+            border: 2px solid rgba(255, 255, 255, .5);
+            color: white;
+            background: transparent;
+        }
+
+        .btn-nav:hover {
+            background: rgba(255, 255, 255, .15);
+        }
+
+        .btn-primary {
+            background: #1e7883;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .btn-danger {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        main {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 1rem;
+            display: grid;
+            gap: 1rem;
+        }
+
+        .toolbar,
+        .panel {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .05);
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .filtros {
+            display: flex;
+            gap: .7rem;
+            flex-wrap: wrap;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: .65rem .75rem;
+            font: inherit;
+        }
+
+        .filtros input {
+            width: 260px;
+        }
+
+        .filtros select {
+            width: 160px;
+        }
+
+        .mensaje {
+            padding: .85rem 1rem;
+            border-radius: 8px;
+            font-weight: 800;
+        }
+
+        .mensaje[hidden] {
+            display: none;
+        }
+
+        .mensaje.ok {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .mensaje.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 420px;
+            gap: 1rem;
+            align-items: start;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .9rem;
+        }
+
+        th,
+        td {
+            padding: .75rem;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            color: #4b5563;
+            font-size: .78rem;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+
+        .descripcion {
+            max-width: 420px;
+            font-weight: 700;
+        }
+
+        .tag {
+            display: inline-flex;
+            border-radius: 999px;
+            padding: .22rem .55rem;
+            font-size: .75rem;
+            font-weight: 900;
+            background: #e0f2fe;
+            color: #075985;
+            margin: .12rem;
+        }
+
+        .estado {
+            display: inline-flex;
+            border-radius: 999px;
+            padding: .25rem .55rem;
+            font-size: .75rem;
+            font-weight: 900;
+        }
+
+        .estado.activo {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .estado.inactivo {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .acciones {
+            display: flex;
+            gap: .4rem;
+            flex-wrap: wrap;
+        }
+
+        .editor {
+            display: grid;
+            gap: .75rem;
+        }
+
+        .editor label {
+            display: grid;
+            gap: .35rem;
+            font-weight: 800;
+            font-size: .9rem;
+        }
+
+        .editor textarea {
+            min-height: 92px;
+            resize: vertical;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: .86rem;
+        }
+
+        .lineas-preview {
+            display: grid;
+            gap: .45rem;
+            margin-top: .5rem;
+            color: #4b5563;
+            font-size: .84rem;
+        }
+
+        .linea-preview {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: .5rem;
+        }
+
+        .vacio {
+            padding: 1rem;
+            color: #6b7280;
+            text-align: center;
+        }
+
+        @media (max-width: 980px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 720px) {
+            .filtros input,
+            .filtros select,
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="header-inner">
+            <div>
+                <h1>Ejemplos IA</h1>
+                <p class="header-sub">
+                    {{ empresa_actual.nombre if empresa_actual else "Sin empresa seleccionada" }}
+                </p>
+            </div>
+            <nav class="nav">
+                <a class="btn btn-nav" href="{{ url_for('index') }}">Inicio</a>
+                <a class="btn btn-nav" href="{{ url_for('asiento') }}">Asientos</a>
+                <a class="btn btn-nav" href="{{ url_for('pedido') }}">Pedidos</a>
+                <a class="btn btn-nav" href="{{ url_for('historial') }}">Historial</a>
+                <a class="btn btn-nav" href="{{ url_for('estado_as400') }}">Estado AS/400</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="toolbar">
+            <div>
+                <h2>Ejemplos aprendidos</h2>
+                <p style="margin:0;color:#6b7280;">Activos: <strong id="contadorActivos">0</strong> · Total: <strong id="contadorTotal">0</strong></p>
+            </div>
+            <div class="filtros">
+                <input type="search" id="busqueda" placeholder="Buscar descripción, cuenta o concepto...">
+                <select id="filtroEstado">
+                    <option value="">Todos</option>
+                    <option value="activo">Activos</option>
+                    <option value="inactivo">Inactivos</option>
+                </select>
+            </div>
+        </section>
+
+        <div id="mensaje" class="mensaje" hidden></div>
+
+        {% if error %}
+        <div class="mensaje error">{{ error }}</div>
+        {% endif %}
+
+        <div class="layout">
+            <section class="panel">
+                <div id="tablaEjemplos"></div>
+            </section>
+
+            <aside class="panel">
+                <h2>Editar ejemplo</h2>
+                <form class="editor" id="editor" hidden>
+                    <input type="hidden" id="ejemploId">
+
+                    <label>
+                        Descripción
+                        <textarea id="descripcion"></textarea>
+                    </label>
+
+                    <label>
+                        Tipos de operación
+                        <input type="text" id="tiposOperacion" placeholder="Factura de compra, Banco">
+                    </label>
+
+                    <label>
+                        Líneas
+                        <textarea id="lineasTexto"></textarea>
+                    </label>
+
+                    <label style="display:flex;align-items:center;gap:.45rem;font-weight:800;">
+                        <input type="checkbox" id="activo" style="width:18px;height:18px;">
+                        Activo
+                    </label>
+
+                    <div class="acciones">
+                        <button type="submit" class="btn btn-primary">Guardar</button>
+                        <button type="button" class="btn btn-secondary" id="btnCancelar">Cancelar</button>
+                    </div>
+                </form>
+                <div id="editorVacio" class="vacio">Selecciona un ejemplo.</div>
+            </aside>
+        </div>
+    </main>
+
+    <script>
+        let ejemplos = {{ ejemplos|tojson }};
+        const tablaEjemplos = document.getElementById("tablaEjemplos");
+        const busqueda = document.getElementById("busqueda");
+        const filtroEstado = document.getElementById("filtroEstado");
+        const contadorActivos = document.getElementById("contadorActivos");
+        const contadorTotal = document.getElementById("contadorTotal");
+        const mensaje = document.getElementById("mensaje");
+        const editor = document.getElementById("editor");
+        const editorVacio = document.getElementById("editorVacio");
+        const ejemploId = document.getElementById("ejemploId");
+        const descripcion = document.getElementById("descripcion");
+        const tiposOperacion = document.getElementById("tiposOperacion");
+        const lineasTexto = document.getElementById("lineasTexto");
+        const activo = document.getElementById("activo");
+        const btnCancelar = document.getElementById("btnCancelar");
+
+        function escapeHtml(texto) {
+            return String(texto ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        function fechaLocal(valor) {
+            if (!valor) {
+                return "Sin datos";
+            }
+
+            const fecha = new Date(valor);
+            return Number.isNaN(fecha.getTime()) ? valor : fecha.toLocaleString("es-ES");
+        }
+
+        function textoEjemplo(ejemplo) {
+            const partes = [
+                ejemplo.descripcion,
+                ...(ejemplo.tipos_operacion || []),
+                ...(ejemplo.lineas || []).flatMap(linea => [
+                    linea.cuenta,
+                    linea.concepto,
+                    linea.debe_haber,
+                ]),
+            ];
+
+            return partes.join(" ").toLowerCase();
+        }
+
+        function ejemplosFiltrados() {
+            const texto = busqueda.value.trim().toLowerCase();
+            const estado = filtroEstado.value;
+
+            return ejemplos.filter(ejemplo => {
+                const esActivo = ejemplo.activo !== false;
+
+                if (estado === "activo" && !esActivo) {
+                    return false;
+                }
+
+                if (estado === "inactivo" && esActivo) {
+                    return false;
+                }
+
+                return !texto || textoEjemplo(ejemplo).includes(texto);
+            });
+        }
+
+        function renderLineasPreview(ejemplo) {
+            return (ejemplo.lineas || []).slice(0, 4).map(linea => `
+                <div class="linea-preview">
+                    <strong>${escapeHtml(linea.cuenta)}</strong>
+                    · ${escapeHtml(linea.debe_haber)}
+                    · ${Number(linea.importe || 0).toFixed(2)} €
+                    · ${escapeHtml(linea.concepto || "")}
+                </div>
+            `).join("");
+        }
+
+        function renderTabla() {
+            const visibles = ejemplosFiltrados();
+            contadorActivos.textContent = ejemplos.filter(ejemplo => ejemplo.activo !== false).length;
+            contadorTotal.textContent = ejemplos.length;
+
+            if (!visibles.length) {
+                tablaEjemplos.innerHTML = "<div class=\"vacio\">Sin ejemplos para el filtro actual.</div>";
+                return;
+            }
+
+            tablaEjemplos.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Descripción</th>
+                            <th>Estado</th>
+                            <th>Líneas</th>
+                            <th>Actualizado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${visibles.map(ejemplo => {
+                            const esActivo = ejemplo.activo !== false;
+                            const tags = (ejemplo.tipos_operacion || []).map(tipo => `
+                                <span class="tag">${escapeHtml(tipo)}</span>
+                            `).join("");
+
+                            return `
+                                <tr>
+                                    <td>
+                                        <div class="descripcion">${escapeHtml(ejemplo.descripcion || "")}</div>
+                                        <div>${tags}</div>
+                                        <div class="lineas-preview">${renderLineasPreview(ejemplo)}</div>
+                                    </td>
+                                    <td><span class="estado ${esActivo ? "activo" : "inactivo"}">${esActivo ? "Activo" : "Inactivo"}</span></td>
+                                    <td>${Number(ejemplo.num_lineas || (ejemplo.lineas || []).length)}</td>
+                                    <td>${escapeHtml(fechaLocal(ejemplo.actualizado))}</td>
+                                    <td>
+                                        <div class="acciones">
+                                            <button type="button" class="btn btn-secondary" data-accion="editar" data-id="${escapeHtml(ejemplo.id)}">Editar</button>
+                                            <button type="button" class="btn btn-secondary" data-accion="toggle" data-id="${escapeHtml(ejemplo.id)}">${esActivo ? "Desactivar" : "Activar"}</button>
+                                            <button type="button" class="btn btn-danger" data-accion="borrar" data-id="${escapeHtml(ejemplo.id)}">Borrar</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join("")}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function lineasAtexto(lineas) {
+            return (lineas || []).map(linea => [
+                linea.cuenta,
+                linea.debe_haber,
+                Number(linea.importe || 0).toFixed(2),
+                String(linea.concepto || "").replace(/\n/g, " "),
+            ].join(";")).join("\n");
+        }
+
+        function textoALineas(texto) {
+            return String(texto || "")
+                .split(/\n+/)
+                .map(linea => linea.trim())
+                .filter(Boolean)
+                .map(linea => {
+                    const partes = linea.split(";");
+                    return {
+                        cuenta: (partes[0] || "").trim(),
+                        debe_haber: (partes[1] || "").trim().toUpperCase(),
+                        importe: Number(String(partes[2] || "").replace(",", ".")),
+                        concepto: partes.slice(3).join(";").trim(),
+                    };
+                });
+        }
+
+        function editarEjemplo(id) {
+            const ejemplo = ejemplos.find(item => item.id === id);
+
+            if (!ejemplo) {
+                return;
+            }
+
+            ejemploId.value = ejemplo.id;
+            descripcion.value = ejemplo.descripcion || "";
+            tiposOperacion.value = (ejemplo.tipos_operacion || []).join(", ");
+            lineasTexto.value = lineasAtexto(ejemplo.lineas || []);
+            activo.checked = ejemplo.activo !== false;
+            editor.hidden = false;
+            editorVacio.hidden = true;
+        }
+
+        function cerrarEditor() {
+            editor.reset();
+            ejemploId.value = "";
+            editor.hidden = true;
+            editorVacio.hidden = false;
+        }
+
+        function mostrarMensaje(texto, tipo) {
+            mensaje.textContent = texto;
+            mensaje.className = `mensaje ${tipo}`;
+            mensaje.hidden = false;
+        }
+
+        async function actualizarEjemplo(id, payload) {
+            const response = await fetch(`/api/asiento/ejemplos/${encodeURIComponent(id)}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                throw new Error(data.mensaje || "No se pudo actualizar el ejemplo");
+            }
+
+            const indice = ejemplos.findIndex(item => item.id === id);
+
+            if (indice >= 0) {
+                ejemplos[indice] = data.ejemplo;
+            }
+
+            renderTabla();
+            return data.ejemplo;
+        }
+
+        tablaEjemplos.addEventListener("click", async event => {
+            const boton = event.target.closest("button[data-accion]");
+
+            if (!boton) {
+                return;
+            }
+
+            const id = boton.dataset.id;
+            const accion = boton.dataset.accion;
+            const ejemplo = ejemplos.find(item => item.id === id);
+
+            if (!ejemplo) {
+                return;
+            }
+
+            if (accion === "editar") {
+                editarEjemplo(id);
+                return;
+            }
+
+            if (accion === "toggle") {
+                try {
+                    await actualizarEjemplo(id, { activo: ejemplo.activo === false });
+                    mostrarMensaje("Estado actualizado.", "ok");
+                } catch (error) {
+                    mostrarMensaje(error.message, "error");
+                }
+                return;
+            }
+
+            if (accion === "borrar") {
+                if (!confirm("¿Borrar este ejemplo IA?")) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/asiento/ejemplos/${encodeURIComponent(id)}`, {
+                        method: "DELETE",
+                    });
+                    const data = await response.json();
+
+                    if (!response.ok || !data.success) {
+                        throw new Error(data.mensaje || "No se pudo borrar el ejemplo");
+                    }
+
+                    ejemplos = ejemplos.filter(item => item.id !== id);
+                    cerrarEditor();
+                    renderTabla();
+                    mostrarMensaje("Ejemplo borrado.", "ok");
+                } catch (error) {
+                    mostrarMensaje(error.message, "error");
+                }
+            }
+        });
+
+        editor.addEventListener("submit", async event => {
+            event.preventDefault();
+
+            const id = ejemploId.value;
+            const payload = {
+                descripcion: descripcion.value.trim(),
+                tipos_operacion: tiposOperacion.value
+                    .split(",")
+                    .map(tipo => tipo.trim())
+                    .filter(Boolean),
+                lineas: textoALineas(lineasTexto.value),
+                activo: activo.checked,
+            };
+
+            try {
+                await actualizarEjemplo(id, payload);
+                cerrarEditor();
+                mostrarMensaje("Ejemplo guardado.", "ok");
+            } catch (error) {
+                mostrarMensaje(error.message, "error");
+            }
+        });
+
+        btnCancelar.addEventListener("click", cerrarEditor);
+        busqueda.addEventListener("input", renderTabla);
+        filtroEstado.addEventListener("change", renderTabla);
+
+        renderTabla();
+    </script>
+</body>
+
+</html>

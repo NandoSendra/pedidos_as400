@@ -1,0 +1,154 @@
+{
+  "ejemplos": [
+    {
+      "id": "ejemplo-factura-venta-mercadona",
+      "empresa_id": "default",
+      "descripcion": "Factura venta cliente Mercadona, base 1.000 € + IVA 21%",
+      "lineas": [
+        {
+          "cuenta": "4300046034",
+          "importe": 1210.0,
+          "debe_haber": "D",
+          "concepto": "Factura venta Mercadona"
+        },
+        {
+          "cuenta": "7000000001",
+          "importe": 1000.0,
+          "debe_haber": "H",
+          "concepto": "Base imponible ventas"
+        },
+        {
+          "cuenta": "4770000021",
+          "importe": 210.0,
+          "debe_haber": "H",
+          "concepto": "IVA repercutido 21%"
+        }
+      ],
+      "tipos_operacion": ["factura_venta"],
+      "usuario": "admin",
+      "creado": "2026-01-15T10:00:00+00:00",
+      "actualizado": "2026-01-15T10:00:00+00:00"
+    },
+    {
+      "id": "ejemplo-factura-compra-iva21",
+      "empresa_id": "default",
+      "descripcion": "Factura compra proveedor, base 500 € + IVA 21%",
+      "lineas": [
+        {
+          "cuenta": "6000000001",
+          "importe": 500.0,
+          "debe_haber": "D",
+          "concepto": "Compra mercaderías"
+        },
+        {
+          "cuenta": "4720000021",
+          "importe": 105.0,
+          "debe_haber": "D",
+          "concepto": "IVA soportado 21%"
+        },
+        {
+          "cuenta": "4000000186",
+          "importe": 605.0,
+          "debe_haber": "H",
+          "concepto": "Proveedor factura"
+        }
+      ],
+      "tipos_operacion": ["factura_compra"],
+      "usuario": "admin",
+      "creado": "2026-01-20T11:30:00+00:00",
+      "actualizado": "2026-01-20T11:30:00+00:00"
+    },
+    {
+      "id": "ejemplo-pago-proveedor-banco",
+      "empresa_id": "default",
+      "descripcion": "Pago factura proveedor por banco Santander 605 €",
+      "lineas": [
+        {
+          "cuenta": "4000000186",
+          "importe": 605.0,
+          "debe_haber": "D",
+          "concepto": "Pago proveedor"
+        },
+        {
+          "cuenta": "5720000001",
+          "importe": 605.0,
+          "debe_haber": "H",
+          "concepto": "Transferencia banco Santander"
+        }
+      ],
+      "tipos_operacion": ["pago", "banco"],
+      "usuario": "admin",
+      "creado": "2026-02-01T09:15:00+00:00",
+      "actualizado": "2026-02-01T09:15:00+00:00"
+    },
+    {
+      "id": "ejemplo-pago-nando-sendra-santander",
+      "empresa_id": "default",
+      "descripcion": "Pago 150 euros a Nando Sendra por el banco Santander",
+      "lineas": [
+        {
+          "cuenta": "4300200239",
+          "importe": 150.0,
+          "debe_haber": "D",
+          "concepto": "Pago a SENDRA FOLQUES, NANDO"
+        },
+        {
+          "cuenta": "5720000001",
+          "importe": 150.0,
+          "debe_haber": "H",
+          "concepto": "Transferencia Banco Santander"
+        }
+      ],
+      "tipos_operacion": ["pago", "banco"],
+      "usuario": "admin",
+      "creado": "2026-02-15T12:00:00+00:00",
+      "actualizado": "2026-02-15T12:00:00+00:00"
+    },
+    {
+      "id": "ejemplo-cobro-cliente-mercadona",
+      "empresa_id": "default",
+      "descripcion": "Cobro factura cliente Mercadona en banco 1.210 €",
+      "lineas": [
+        {
+          "cuenta": "5720000001",
+          "importe": 1210.0,
+          "debe_haber": "D",
+          "concepto": "Cobro Mercadona"
+        },
+        {
+          "cuenta": "4300046034",
+          "importe": 1210.0,
+          "debe_haber": "H",
+          "concepto": "Cobro factura Mercadona"
+        }
+      ],
+      "tipos_operacion": ["cobro", "banco"],
+      "usuario": "admin",
+      "creado": "2026-02-10T16:45:00+00:00",
+      "actualizado": "2026-02-10T16:45:00+00:00"
+    },
+    {
+      "id": "ejemplo-debe-nando-sendra",
+      "empresa_id": "default",
+      "descripcion": "Añade 10 euros al debe a Nando Sendra, no elimines el asiento",
+      "lineas": [
+        {
+          "cuenta": "4300200239",
+          "importe": 10.0,
+          "debe_haber": "D",
+          "concepto": "Ajuste Debe SENDRA FOLQUES, NANDO"
+        },
+        {
+          "cuenta": "5720000001",
+          "importe": 10.0,
+          "debe_haber": "H",
+          "concepto": "Contrapartida ajuste"
+        }
+      ],
+      "tipos_operacion": ["pago"],
+      "usuario": "admin",
+      "creado": "2026-03-05T08:20:00+00:00",
+      "actualizado": "2026-03-05T08:20:00+00:00"
+    }
+  ]
+}

@@ -1,11 +1,16 @@
 .env
 users.json
 empresas.json
+asientos_ejemplos.json
+historial_operaciones.json
+historial_operaciones.json.lock
+historial_operaciones.json.tmp
 deploy/local.env
 FLASK_SECRET_KEY=clave_desarrollo
 requirements.txt
 as400_api copy.py
 iseries_api_c.py
+data/
 .venv/
 venv/
 __pycache__/

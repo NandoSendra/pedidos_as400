@@ -1,0 +1,2903 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Asiento contable</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, Arial, sans-serif;
+            background: #f3f4f6;
+            color: #1f2937;
+        }
+
+        header {
+            background: #1e7883;
+            color: white;
+            padding: 1rem 1.5rem;
+        }
+
+        .header-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.4rem;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            flex-wrap: wrap;
+        }
+
+        .header-empresa select {
+            border: 2px solid rgba(255, 255, 255, .5);
+            border-radius: 8px;
+            padding: .45rem .55rem;
+            font-size: .95rem;
+            font-weight: 700;
+            color: #1e7883;
+            background: white;
+            max-width: 220px;
+        }
+
+        .header-usuario {
+            display: flex;
+            align-items: center;
+            gap: .65rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-nav,
+        .btn-logout {
+            color: white;
+            text-decoration: none;
+            background: rgba(255, 255, 255, .18);
+            padding: .45rem .75rem;
+            border-radius: 8px;
+            font-size: .9rem;
+            font-weight: 600;
+        }
+
+        .btn-nav:hover,
+        .btn-logout:hover {
+            background: rgba(255, 255, 255, .28);
+        }
+
+        main {
+            max-width: 1280px;
+            margin: 1.5rem auto;
+            padding: 0 1rem 2rem;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, .08);
+            padding: 1.25rem;
+        }
+
+        .panel h2 {
+            margin: 0 0 1rem;
+            font-size: 1.15rem;
+        }
+
+        .alerta {
+            margin: 1rem;
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 1rem;
+            border-radius: 12px;
+        }
+
+        .mensaje {
+            display: none;
+            margin-bottom: 1rem;
+            padding: .9rem 1rem;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .mensaje.error {
+            display: block;
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .mensaje.ok {
+            display: block;
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .mensaje.aviso {
+            display: block;
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .lineas-tabla {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+        }
+
+        .lineas-tabla th,
+        .lineas-tabla td {
+            padding: .55rem;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: left;
+            vertical-align: middle;
+        }
+
+        .lineas-tabla th {
+            font-size: .85rem;
+            color: #6b7280;
+            font-weight: 700;
+        }
+
+        .lineas-tabla input,
+        .lineas-tabla select {
+            width: 100%;
+            padding: .55rem .65rem;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: .95rem;
+        }
+
+        .lineas-tabla input:focus,
+        .lineas-tabla select:focus {
+            outline: none;
+            border-color: #1e7883;
+            box-shadow: 0 0 0 3px rgba(30, 120, 131, .15);
+        }
+
+        .lineas-tabla input.importe-invalido {
+            border-color: #dc2626;
+            background: #fef2f2;
+        }
+
+        .col-importe {
+            width: 120px;
+        }
+
+        .col-debe-haber {
+            width: 110px;
+        }
+
+        .col-acciones {
+            width: 90px;
+            text-align: center;
+        }
+
+        .col-cuenta {
+            min-width: 200px;
+        }
+
+        .col-contrapartida {
+            min-width: 200px;
+        }
+
+        .fila-contrapartida {
+            background: #f0f9fa;
+        }
+
+        .etiqueta-auto {
+            display: inline-block;
+            font-size: .75rem;
+            font-weight: 700;
+            color: #1e7883;
+            background: #d9f0f2;
+            padding: .25rem .5rem;
+            border-radius: 999px;
+        }
+
+        .cuenta-combobox {
+            position: relative;
+        }
+
+        .cuenta-combobox input[type="search"] {
+            width: 100%;
+            padding: .55rem .65rem;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: .95rem;
+        }
+
+        .cuenta-combobox input[type="search"]:focus {
+            outline: none;
+            border-color: #1e7883;
+            box-shadow: 0 0 0 3px rgba(30, 120, 131, .15);
+        }
+
+        .cuenta-dropdown-principal,
+        .cuenta-dropdown-contrapartida {
+            position: absolute;
+            top: calc(100% + .25rem);
+            left: 0;
+            right: 0;
+            z-index: 30;
+            max-height: 220px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, .12);
+        }
+
+        .cuenta-opcion {
+            display: block;
+            width: 100%;
+            text-align: left;
+            background: white;
+            border: none;
+            border-bottom: 1px solid #f3f4f6;
+            padding: .65rem .8rem;
+            cursor: pointer;
+            font-size: .9rem;
+        }
+
+        .cuenta-opcion:hover,
+        .cuenta-opcion:focus {
+            background: #f0f9fa;
+            outline: none;
+        }
+
+        .cuenta-opcion strong {
+            color: #1e7883;
+        }
+
+        .cuenta-tipo {
+            display: inline-block;
+            margin-left: .35rem;
+            padding: .1rem .4rem;
+            border-radius: 999px;
+            background: #e8f4f6;
+            color: #0f5f68;
+            font-size: .75rem;
+            font-weight: 600;
+        }
+
+        .btn-secundario,
+        .btn-confirmar,
+        .btn-eliminar {
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: .95rem;
+        }
+
+        .btn-secundario {
+            background: #e5e7eb;
+            color: #1f2937;
+            padding: .7rem 1rem;
+        }
+
+        .btn-limpiar-lineas {
+            background: #fef2f2;
+            color: #b91c1c;
+            border: 1px solid #fecaca;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: .95rem;
+            padding: .7rem 1rem;
+        }
+
+        .btn-limpiar-lineas:hover {
+            background: #fee2e2;
+        }
+
+        .btn-confirmar {
+            background: #1e7883;
+            color: white;
+            padding: .85rem 1.2rem;
+            width: 100%;
+        }
+
+        .btn-confirmar:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+        }
+
+        .btn-eliminar {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: .45rem .65rem;
+        }
+
+        .totales {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin: 1rem 0;
+            padding: .9rem 1rem;
+            background: #f9fafb;
+            border-radius: 12px;
+            font-weight: 700;
+        }
+
+        .totales .descuadrado {
+            color: #b91c1c;
+        }
+
+        .totales .cuadrado {
+            color: #166534;
+        }
+
+        .acciones-footer {
+            display: flex;
+            gap: .75rem;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .acciones-footer .btn-confirmar {
+            width: auto;
+            min-width: 220px;
+        }
+
+        .guardar-ejemplo-check {
+            display: inline-flex;
+            align-items: center;
+            gap: .45rem;
+            font-size: .9rem;
+            color: #374151;
+            cursor: pointer;
+        }
+
+        .ejemplos-ia-info {
+            margin-top: .5rem;
+            font-size: .85rem;
+            color: #4b5563;
+        }
+
+        .panel-ia {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border-radius: 12px;
+            background: #f0f9fa;
+            border: 1px solid #c7e6ea;
+        }
+
+        .panel-ia h3 {
+            margin: 0 0 .5rem;
+            font-size: 1rem;
+            color: #1e7883;
+        }
+
+        .panel-ia p {
+            margin: 0 0 .75rem;
+            color: #4b5563;
+            font-size: .92rem;
+        }
+
+        .panel-ia textarea {
+            width: 100%;
+            min-height: 90px;
+            padding: .75rem;
+            border: 1px solid #b8dde2;
+            border-radius: 10px;
+            font-size: .95rem;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        .panel-ia textarea:focus {
+            outline: none;
+            border-color: #1e7883;
+            box-shadow: 0 0 0 3px rgba(30, 120, 131, .15);
+        }
+
+        .panel-ia-acciones {
+            display: flex;
+            gap: .75rem;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-top: .75rem;
+        }
+
+        .panel-ia-fecha label {
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            font-size: .9rem;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .btn-ia {
+            background: #0f5f68;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: .7rem 1rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-ia:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+        }
+
+        .btn-ia-stop {
+            background: #b91c1c;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: .7rem 1rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-ia-stop:hover {
+            background: #991b1b;
+        }
+
+        .btn-ia-stop:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+        }
+
+        .ia-explicacion {
+            margin-top: .75rem;
+            padding: .75rem .9rem;
+            border-radius: 10px;
+            background: white;
+            border: 1px solid #d1e7ea;
+            font-size: .92rem;
+            color: #374151;
+            white-space: pre-line;
+        }
+
+        .ia-explicacion.pregunta {
+            background: #fffbeb;
+            border-color: #fcd34d;
+            color: #78350f;
+        }
+
+        .panel-ia-ejemplos {
+            margin: 0 0 .75rem;
+            padding: .75rem .9rem;
+            border-radius: 10px;
+            background: white;
+            border: 1px solid #d1e7ea;
+            font-size: .85rem;
+            color: #4b5563;
+        }
+
+        .panel-ia-ejemplos summary {
+            cursor: pointer;
+            font-weight: 700;
+            color: #1e7883;
+        }
+
+        .panel-ia-ejemplos ul {
+            margin: .6rem 0 0;
+            padding-left: 1.2rem;
+        }
+
+        .panel-ia-ejemplos li {
+            margin-bottom: .35rem;
+        }
+
+        .paneles-asistente {
+            margin-top: 1.5rem;
+            padding-top: 1.25rem;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .paneles-asistente .panel-csv,
+        .paneles-asistente .panel-ia {
+            margin-bottom: 1rem;
+        }
+
+        .paneles-asistente .panel-ia:last-child,
+        .paneles-asistente .panel-csv:last-child {
+            margin-bottom: 0;
+        }
+
+        .panel-csv {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border-radius: 12px;
+            background: #f8fafc;
+            border: 1px solid #dbe3ea;
+        }
+
+        .panel-csv h3 {
+            margin: 0 0 .5rem;
+            font-size: 1rem;
+            color: #334155;
+        }
+
+        .panel-csv p {
+            margin: 0 0 .75rem;
+            color: #4b5563;
+            font-size: .92rem;
+        }
+
+        .panel-csv-formato {
+            margin-bottom: .75rem;
+            font-size: .9rem;
+            color: #475569;
+        }
+
+        .panel-csv-formato summary {
+            cursor: pointer;
+            font-weight: 600;
+            color: #334155;
+        }
+
+        .panel-csv-formato pre {
+            margin: .5rem 0 0;
+            padding: .65rem .75rem;
+            border-radius: 8px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            font-size: .82rem;
+            overflow-x: auto;
+        }
+
+        .panel-csv-archivo {
+            display: flex;
+            gap: .75rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .panel-csv-archivo input[type="file"] {
+            max-width: 100%;
+            font-size: .9rem;
+        }
+
+        .panel-csv-cuenta-banco {
+            display: block;
+            margin-top: .75rem;
+            font-size: .9rem;
+            color: #475569;
+        }
+
+        .panel-csv-cuenta-banco input {
+            display: block;
+            width: min(100%, 280px);
+            margin-top: .35rem;
+            padding: .45rem .6rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: .9rem;
+        }
+
+        .csv-info {
+            margin-top: .75rem;
+            padding: .65rem .8rem;
+            border-radius: 8px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            font-size: .9rem;
+            color: #475569;
+        }
+
+        .csv-diagnostico {
+            margin-top: .75rem;
+            padding: .8rem;
+            border-radius: 10px;
+            background: white;
+            border: 1px solid #dbe3ea;
+            font-size: .9rem;
+            color: #374151;
+        }
+
+        .csv-diagnostico h4 {
+            margin: 0 0 .6rem;
+            font-size: .95rem;
+            color: #334155;
+        }
+
+        .csv-diagnostico-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: .55rem;
+            margin-bottom: .75rem;
+        }
+
+        .csv-diagnostico-dato {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: .55rem;
+            background: #f8fafc;
+        }
+
+        .csv-diagnostico-dato span {
+            display: block;
+            color: #64748b;
+            font-size: .72rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            margin-bottom: .15rem;
+        }
+
+        .csv-columnas,
+        .csv-alertas,
+        .csv-sugerencias-banco {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .4rem;
+            margin-bottom: .75rem;
+        }
+
+        .csv-chip {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: .25rem .5rem;
+            background: #eef7f8;
+            color: #0f5f68;
+            font-weight: 700;
+            font-size: .78rem;
+        }
+
+        .csv-alerta {
+            padding: .55rem .65rem;
+            border-radius: 8px;
+            background: #fef3c7;
+            color: #92400e;
+            font-weight: 700;
+            width: 100%;
+        }
+
+        .csv-sugerencia-banco {
+            border: 1px solid #b8dde2;
+            background: #f0f9fa;
+            color: #0f5f68;
+            border-radius: 8px;
+            padding: .45rem .6rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .csv-preview {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .82rem;
+        }
+
+        .csv-preview th,
+        .csv-preview td {
+            border-bottom: 1px solid #e5e7eb;
+            padding: .45rem;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .csv-estado-ok {
+            color: #166534;
+            font-weight: 800;
+        }
+
+        .csv-estado-error,
+        .csv-estado-cuenta_no_encontrada,
+        .csv-estado-sin_cuenta_banco {
+            color: #b91c1c;
+            font-weight: 800;
+        }
+
+        .panel-csv-acciones {
+            display: flex;
+            gap: .75rem;
+            flex-wrap: wrap;
+            margin-top: .75rem;
+        }
+
+        .btn-csv {
+            background: #334155;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: .7rem 1rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-csv-ia {
+            background: #0f5f68;
+        }
+
+        .btn-csv:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+        }
+
+        .estado-cuentas {
+            margin-bottom: 1rem;
+            padding: .65rem .9rem;
+            border-radius: 10px;
+            background: #eef7f8;
+            border: 1px solid #c7e6ea;
+            font-size: .9rem;
+            color: #374151;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .75rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-recargar-cuentas {
+            border: none;
+            border-radius: 8px;
+            background: white;
+            color: #1e7883;
+            border: 1px solid #b8dde2;
+            padding: .45rem .75rem;
+            font-size: .85rem;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .btn-recargar-cuentas:hover:not(:disabled) {
+            background: #f0f9fa;
+        }
+
+        .btn-recargar-cuentas:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+        }
+
+        .estado-cuentas.cargando {
+            color: #1e7883;
+            font-weight: 600;
+        }
+
+        .estado-cuentas.error {
+            background: #fee2e2;
+            border-color: #fecaca;
+            color: #991b1b;
+        }
+
+        .modal-preconfirm {
+            position: fixed;
+            inset: 0;
+            background: rgba(17, 24, 39, .5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            z-index: 60;
+        }
+
+        .modal-preconfirm.activo {
+            display: flex;
+        }
+
+        .modal-preconfirm-panel {
+            width: min(860px, 100%);
+            max-height: 88vh;
+            overflow: auto;
+            background: white;
+            border-radius: 16px;
+            padding: 1.25rem;
+            box-shadow: 0 24px 48px rgba(0, 0, 0, .2);
+        }
+
+        .modal-preconfirm-header,
+        .modal-preconfirm-acciones {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .modal-preconfirm-header h2 {
+            margin: 0 0 .25rem;
+            font-size: 1.15rem;
+        }
+
+        .modal-preconfirm-header p {
+            margin: 0;
+            color: #6b7280;
+            font-size: .9rem;
+        }
+
+        .preconfirm-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: .65rem;
+            margin: 1rem 0;
+        }
+
+        .preconfirm-dato {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: .7rem;
+            background: #f9fafb;
+        }
+
+        .preconfirm-dato span {
+            display: block;
+            color: #6b7280;
+            font-size: .76rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            margin-bottom: .2rem;
+        }
+
+        .preconfirm-alertas {
+            display: grid;
+            gap: .45rem;
+            margin-bottom: 1rem;
+        }
+
+        .preconfirm-alerta {
+            padding: .65rem .75rem;
+            border-radius: 10px;
+            background: #fef3c7;
+            color: #92400e;
+            font-size: .9rem;
+            font-weight: 700;
+        }
+
+        .preconfirm-tabla {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1rem;
+        }
+
+        .preconfirm-tabla th,
+        .preconfirm-tabla td {
+            border-bottom: 1px solid #e5e7eb;
+            padding: .55rem .5rem;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .preconfirm-tabla th {
+            color: #6b7280;
+            font-size: .78rem;
+            text-transform: uppercase;
+        }
+
+        .preconfirm-numero {
+            text-align: right;
+            white-space: nowrap;
+            font-weight: 800;
+        }
+
+        .modal-preconfirm-acciones {
+            justify-content: flex-end;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 1rem;
+        }
+
+        .btn-preconfirm-cancelar {
+            background: #e5e7eb;
+            color: #1f2937;
+            border: none;
+            border-radius: 10px;
+            padding: .7rem 1rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-preconfirm-enviar {
+            background: #1e7883;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: .7rem 1rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-preconfirm-enviar:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+        }
+
+        @media (max-width: 760px) {
+            .lineas-tabla thead {
+                display: none;
+            }
+
+            .lineas-tabla tr {
+                display: block;
+                margin-bottom: 1rem;
+                border: 1px solid #e5e7eb;
+                border-radius: 12px;
+                padding: .75rem;
+            }
+
+            .lineas-tabla td {
+                display: block;
+                border: none;
+                padding: .35rem 0;
+            }
+
+            .lineas-tabla td::before {
+                content: attr(data-label);
+                display: block;
+                font-size: .8rem;
+                color: #6b7280;
+                font-weight: 700;
+                margin-bottom: .25rem;
+            }
+
+            .col-acciones {
+                text-align: left;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="header-inner">
+            <h1>Asiento contable</h1>
+            <div class="header-actions">
+                <a class="btn-nav" href="{{ url_for('index') }}">Inicio</a>
+                <a class="btn-nav" href="{{ url_for('pedido') }}">Pedidos</a>
+                <a class="btn-nav" href="{{ url_for('historial') }}">Historial</a>
+                <a class="btn-nav" href="{{ url_for('asiento_ejemplos') }}">Ejemplos IA</a>
+                <a class="btn-nav" href="{{ url_for('estado_as400') }}">Estado AS/400</a>
+                {% if empresas|length > 1 %}
+                <label class="header-empresa" for="empresaSelector">
+                    Empresa
+                    <select id="empresaSelector" aria-label="Seleccionar empresa">
+                        {% for empresa in empresas %}
+                        <option value="{{ empresa.id }}" {% if empresa_actual and empresa.id == empresa_actual.id %}selected{% endif %}>
+                            {{ empresa.nombre }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </label>
+                {% elif empresa_actual %}
+                <span>{{ empresa_actual.nombre }}</span>
+                {% endif %}
+                {% if auth_enabled and usuario %}
+                <div class="header-usuario">
+                    {% if es_admin %}
+                    <a class="btn-logout" href="{{ url_for('admin_usuarios') }}">Usuarios</a>
+                    {% endif %}
+                    <a class="btn-logout" href="{{ url_for('cuenta_password') }}">Contraseña</a>
+                    <span>{{ usuario }}</span>
+                    <a class="btn-logout" href="{{ url_for('logout') }}">Salir</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    {% if error %}
+    <div class="alerta">{{ error }}</div>
+    {% endif %}
+
+    <main>
+        <section class="panel">
+            <h2>Nuevo asiento</h2>
+
+            <div id="mensaje" class="mensaje"></div>
+            <div id="estadoCuentas" class="estado-cuentas cargando">
+                <span id="estadoCuentasTexto">Cargando plan de cuentas...</span>
+                <button type="button" class="btn-recargar-cuentas" id="btnRecargarCuentas" disabled>
+                    Recargar cuentas
+                </button>
+            </div>
+
+            <table class="lineas-tabla" id="tablaLineas">
+                <thead>
+                    <tr>
+                        <th>Cuenta</th>
+                        <th>Contrapartida</th>
+                        <th>Fecha</th>
+                        <th class="col-importe">Importe</th>
+                        <th class="col-debe-haber">Debe/Haber</th>
+                        <th>Concepto</th>
+                        <th class="col-acciones"></th>
+                    </tr>
+                </thead>
+                <tbody id="lineasBody"></tbody>
+            </table>
+
+            <div class="totales">
+                <span>Debe: <span id="totalDebe">0.00</span> €</span>
+                <span>Haber: <span id="totalHaber">0.00</span> €</span>
+                <span id="estadoCuadre" class="descuadrado">Descuadrado</span>
+            </div>
+
+            <div class="acciones-footer">
+                <button type="button" class="btn-secundario" id="btnAnadirLinea">Añadir línea</button>
+                <button type="button" class="btn-limpiar-lineas" id="btnBorrarTodasLineas">
+                    Borrar todas las líneas
+                </button>
+                {% if ai_disponible %}
+                <label class="guardar-ejemplo-check" for="guardarEjemploIA">
+                    <input type="checkbox" id="guardarEjemploIA">
+                    Guardar como ejemplo para la IA al confirmar
+                </label>
+                <button type="button" class="btn-secundario" id="btnGuardarEjemplo">
+                    Guardar como ejemplo
+                </button>
+                {% endif %}
+                <button type="button" class="btn-confirmar" id="btnConfirmar" disabled>
+                    Confirmar asiento
+                </button>
+            </div>
+
+            <div class="paneles-asistente">
+                {% if ai_disponible %}
+                <div class="panel-ia">
+                    <h3>Asistente IA{% if ai_info %} <span style="font-weight:600;font-size:.85rem;">({{ ai_info.proveedor_etiqueta }} · {{ ai_info.modelo }})</span>{% endif %}</h3>
+                    <p>Indica el tipo de operación y los nombres tal como están en el plan contable (tercero, banco, importe, IVA). Si ya hay líneas, puedes pedir cambios sin borrarlas (ej. «Añade 10 € al debe a Nando Sendra, no elimines el asiento»).</p>
+                    <details class="panel-ia-ejemplos">
+                        <summary>Ejemplos por tipo de asiento</summary>
+                        <ul>
+                            <li><strong>Nómina:</strong> Nómina marzo, neto 3.500 €, SS e IRPF incluidos, pago por Santander.</li>
+                            <li><strong>Factura compra:</strong> Factura compra proveedor X, base 1.000 € + IVA 21%.</li>
+                            <li><strong>Factura venta:</strong> Factura venta cliente Mercadona, base 1.000 € + IVA 21%.</li>
+                            <li><strong>Confirming:</strong> Liquidación confirming proveedor Z, 5.000 € por banco Santander.</li>
+                            <li><strong>Pago:</strong> Pago 150 € a JOSE PEREA por banco Santander.</li>
+                            <li><strong>Cobro:</strong> Cobro factura cliente ABC, 1.210 € en banco BBVA.</li>
+                        </ul>
+                    </details>
+                    <textarea id="descripcionIA" placeholder="Ejemplo: Factura compra proveedor García, base 500 € + IVA 21%"></textarea>
+                    <div class="panel-ia-acciones">
+                        <div class="panel-ia-fecha">
+                            <label for="fechaIA">
+                                Fecha
+                                <input type="date" id="fechaIA">
+                            </label>
+                        </div>
+                    <button type="button" class="btn-ia" id="btnSugerirIA">Sugerir asiento con IA</button>
+                    <button type="button" class="btn-ia-stop btn-detener-ia" id="btnDetenerIA" hidden>
+                        Detener IA
+                    </button>
+                </div>
+                <p id="ejemplosIAInfo" class="ejemplos-ia-info" hidden></p>
+                <div id="iaExplicacion" class="ia-explicacion" hidden></div>
+                </div>
+                {% endif %}
+
+                <div class="panel-csv">
+                    <h3>Importar archivo</h3>
+                    <p>CSV, Excel, TSV o Norma 43. Si el fichero tiene columnas de asiento, se cargan las líneas; si no, puedes analizarlo con IA.</p>
+                    <details class="panel-csv-formato">
+                        <summary>Fichero encolumnado (CSV, Excel, TSV…)</summary>
+                        <p>Separadores: <code>;</code>, <code>,</code>, tabulador o <code>|</code>.</p>
+                        <p><strong>Campos mínimos:</strong></p>
+                        <ul>
+                            <li><strong>cuenta</strong> — también ADCTA, AICTA, código, MCCTA…</li>
+                            <li><strong>importe</strong> — también ADIMP, valor, cantidad…</li>
+                            <li><strong>debe_haber</strong> — D/H, 0/1 (AS/400), o columnas <strong>debe</strong> y <strong>haber</strong></li>
+                            <li><strong>fecha</strong>, <strong>concepto</strong> — opcionales (ADCCT, MCNBR, descripción…)</li>
+                        </ul>
+                        <p>Importes negativos invierten el lado Debe/Haber.</p>
+                        <pre>cuenta;importe;debe_haber;concepto
+4300046034;1210;D;Factura venta Mercadona
+7000000001;1000;H;Base imponible
+4770000021;210;H;IVA repercutido 21%</pre>
+                    </details>
+                    <details class="panel-csv-formato">
+                        <summary>Formato Norma 43 (extracto bancario)</summary>
+                        <p>Fichero de texto de 80 caracteres por línea con registros 11 (cabecera), 22 (movimientos) y 23 (concepto ampliado).</p>
+                        <ul>
+                            <li><strong>Cargar líneas</strong>: importa el lado banco (cuenta 572) de cada movimiento.</li>
+                            <li><strong>Analizar con IA</strong>: propone el asiento completo (banco + contrapartida).</li>
+                        </ul>
+                    </details>
+                    <div class="panel-csv-archivo">
+                        <input type="file" id="archivoCSV" accept=".csv,.tsv,.txt,.dat,.xlsx,.xlsm,.xls,.n43,.c43,.csb,.43,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+                    </div>
+                    <label class="panel-csv-cuenta-banco" for="cuentaBancoCSV">
+                        Cuenta banco 572 (opcional, para Norma 43)
+                        <input type="text" id="cuentaBancoCSV" placeholder="Ej. 5720000001">
+                    </label>
+                    <div id="csvInfo" class="csv-info" hidden></div>
+                    <div id="csvDiagnostico" class="csv-diagnostico" hidden></div>
+                    <div class="panel-csv-acciones">
+                        <button type="button" class="btn-csv" id="btnImportarCSV">Cargar líneas al asiento</button>
+                        {% if ai_disponible %}
+                        <button type="button" class="btn-csv btn-csv-ia" id="btnAnalizarCSV">
+                            Analizar con IA
+                        </button>
+                        <button type="button" class="btn-ia-stop btn-detener-ia" id="btnDetenerCSVIA" hidden>
+                            Detener IA
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div class="modal-preconfirm" id="modalPreconfirmAsiento" hidden>
+        <div class="modal-preconfirm-panel" role="dialog" aria-modal="true" aria-labelledby="preconfirmAsientoTitulo">
+            <div class="modal-preconfirm-header">
+                <div>
+                    <h2 id="preconfirmAsientoTitulo">Revisar asiento</h2>
+                    <p id="preconfirmAsientoSubtitulo"></p>
+                </div>
+                <button type="button" class="btn-secundario" id="btnCerrarPreconfirmAsiento">Cerrar</button>
+            </div>
+            <div id="preconfirmAsientoContenido"></div>
+            <div class="modal-preconfirm-acciones">
+                <button type="button" class="btn-preconfirm-cancelar" id="btnCancelarPreconfirmAsiento">Volver</button>
+                <button type="button" class="btn-preconfirm-enviar" id="btnEnviarPreconfirmAsiento">Enviar al AS/400</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const empresaId = {{ (empresa_actual.id if empresa_actual else "default")|tojson }};
+        const empresaActual = {{ empresa_actual|tojson }};
+        const CUENTAS_MAX_RESULTADOS = 40;
+        const CUENTAS_MIN_BUSQUEDA = 2;
+
+        let cuentas = [];
+        let numCuentasTotal = 0;
+        let cuentasDisponibles = false;
+        let cuentasCargando = false;
+        const busquedaCuentasCache = new Map();
+        let iaAbortController = null;
+        let asientoIdempotencyKey = null;
+
+        function generarIdempotencyKey() {
+            if (window.crypto && typeof window.crypto.randomUUID === "function") {
+                return window.crypto.randomUUID();
+            }
+
+            return `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+        }
+
+        function obtenerAsientoIdempotencyKey() {
+            if (!asientoIdempotencyKey) {
+                asientoIdempotencyKey = generarIdempotencyKey();
+            }
+
+            return asientoIdempotencyKey;
+        }
+
+        function reiniciarAsientoIdempotencyKey() {
+            asientoIdempotencyKey = null;
+        }
+
+        function esErrorPeticionCancelada(error) {
+            return error?.name === "AbortError";
+        }
+
+        function establecerEstadoDetenerIA(visible) {
+            document.querySelectorAll(".btn-detener-ia").forEach((boton) => {
+                boton.hidden = !visible;
+            });
+        }
+
+        function iniciarPeticionIA() {
+            if (iaAbortController) {
+                iaAbortController.abort();
+            }
+
+            iaAbortController = new AbortController();
+            establecerEstadoDetenerIA(true);
+            return iaAbortController.signal;
+        }
+
+        function finalizarPeticionIA() {
+            iaAbortController = null;
+            establecerEstadoDetenerIA(false);
+        }
+
+        function detenerPeticionIA() {
+            if (!iaAbortController) {
+                return;
+            }
+
+            iaAbortController.abort();
+            mostrarMensaje("Petición a la IA cancelada.", "aviso");
+        }
+
+        try {
+            for (let indice = sessionStorage.length - 1; indice >= 0; indice -= 1) {
+                const clave = sessionStorage.key(indice);
+
+                if (clave && clave.startsWith("asiento_cuentas_")) {
+                    sessionStorage.removeItem(clave);
+                }
+            }
+        } catch (error) {
+            // Ignorar cachés antiguas que superaban la cuota del navegador.
+        }
+
+        const lineasBody = document.getElementById("lineasBody");
+        const btnAnadirLinea = document.getElementById("btnAnadirLinea");
+        const btnBorrarTodasLineas = document.getElementById("btnBorrarTodasLineas");
+        const btnConfirmar = document.getElementById("btnConfirmar");
+        const mensaje = document.getElementById("mensaje");
+        const totalDebe = document.getElementById("totalDebe");
+        const totalHaber = document.getElementById("totalHaber");
+        const estadoCuadre = document.getElementById("estadoCuadre");
+        const empresaSelector = document.getElementById("empresaSelector");
+        const descripcionIA = document.getElementById("descripcionIA");
+        const fechaIA = document.getElementById("fechaIA");
+        const btnSugerirIA = document.getElementById("btnSugerirIA");
+        const btnDetenerIA = document.getElementById("btnDetenerIA");
+        const btnDetenerCSVIA = document.getElementById("btnDetenerCSVIA");
+        const iaExplicacion = document.getElementById("iaExplicacion");
+        const estadoCuentas = document.getElementById("estadoCuentas");
+        const estadoCuentasTexto = document.getElementById("estadoCuentasTexto");
+        const btnRecargarCuentas = document.getElementById("btnRecargarCuentas");
+        const archivoCSV = document.getElementById("archivoCSV");
+        const cuentaBancoCSV = document.getElementById("cuentaBancoCSV");
+        const csvDiagnostico = document.getElementById("csvDiagnostico");
+        const btnImportarCSV = document.getElementById("btnImportarCSV");
+        const btnAnalizarCSV = document.getElementById("btnAnalizarCSV");
+        const btnGuardarEjemplo = document.getElementById("btnGuardarEjemplo");
+        const guardarEjemploIA = document.getElementById("guardarEjemploIA");
+        const ejemplosIAInfo = document.getElementById("ejemplosIAInfo");
+        const modalPreconfirmAsiento = document.getElementById("modalPreconfirmAsiento");
+        const preconfirmAsientoSubtitulo = document.getElementById("preconfirmAsientoSubtitulo");
+        const preconfirmAsientoContenido = document.getElementById("preconfirmAsientoContenido");
+        const btnCerrarPreconfirmAsiento = document.getElementById("btnCerrarPreconfirmAsiento");
+        const btnCancelarPreconfirmAsiento = document.getElementById("btnCancelarPreconfirmAsiento");
+        const btnEnviarPreconfirmAsiento = document.getElementById("btnEnviarPreconfirmAsiento");
+        const numEjemplosIAInicial = {{ num_ejemplos_ia|tojson }};
+        let payloadPreconfirmAsiento = null;
+
+        function actualizarEstadoCuentasUI(texto, tipo = "") {
+            if (estadoCuentasTexto) {
+                estadoCuentasTexto.textContent = texto;
+            }
+
+            if (estadoCuentas) {
+                estadoCuentas.className = `estado-cuentas${tipo ? ` ${tipo}` : ""}`;
+            }
+        }
+
+        function setRecargarCuentasActivo(activo) {
+            if (btnRecargarCuentas) {
+                btnRecargarCuentas.disabled = !activo;
+            }
+        }
+
+        function textoPlaceholderCuentaPrincipal() {
+            if (cuentasCargando) {
+                return "Cargando cuentas...";
+            }
+
+            if (cuentasDisponibles) {
+                return "Buscar por código o nombre...";
+            }
+
+            return "Cuentas no disponibles";
+        }
+
+        function textoPlaceholderContrapartida() {
+            if (cuentasCargando) {
+                return "Cargando...";
+            }
+
+            if (cuentasDisponibles) {
+                return "Cuenta contrapartida...";
+            }
+
+            return "No disponible";
+        }
+
+        function camposCuentaHabilitados() {
+            return cuentasDisponibles && !cuentasCargando;
+        }
+
+        function aplicarEstadoCuentaFila(fila) {
+            if (!fila) {
+                return;
+            }
+
+            const habilitado = camposCuentaHabilitados();
+            const busquedaCuenta = fila.querySelector(".campo-cuenta-busqueda");
+            const busquedaContrapartida = fila.querySelector(".campo-contrapartida-busqueda");
+
+            if (busquedaCuenta && !busquedaCuenta.readOnly) {
+                busquedaCuenta.disabled = !habilitado;
+                busquedaCuenta.placeholder = textoPlaceholderCuentaPrincipal();
+            }
+
+            if (busquedaContrapartida) {
+                busquedaContrapartida.disabled = !habilitado;
+                busquedaContrapartida.placeholder = textoPlaceholderContrapartida();
+            }
+        }
+
+        function actualizarCamposCuenta() {
+            document.querySelectorAll("#lineasBody tr").forEach(aplicarEstadoCuentaFila);
+        }
+
+        async function cargarCuentas(refrescar = false) {
+            if (refrescar) {
+                busquedaCuentasCache.clear();
+            }
+
+            if (cuentasCargando) {
+                return;
+            }
+
+            cuentasCargando = true;
+            cuentas = [];
+            setRecargarCuentasActivo(false);
+            actualizarCamposCuenta();
+            actualizarEstadoCuentasUI(
+                refrescar
+                    ? "Recargando plan de cuentas desde el AS/400..."
+                    : "Cargando plan de cuentas desde el AS/400...",
+                "cargando"
+            );
+
+            try {
+                const url = refrescar
+                    ? "/api/cuentas?meta=1&refresh=1"
+                    : "/api/cuentas?meta=1";
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.mensaje || "No se pudieron cargar las cuentas");
+                }
+
+                numCuentasTotal = Number(data.numCuentas || 0);
+                cuentasDisponibles = numCuentasTotal > 0;
+                actualizarCamposCuenta();
+                actualizarEstadoCuentasUI(
+                    refrescar
+                        ? `${numCuentasTotal.toLocaleString("es-ES")} cuentas recargadas (búsqueda en servidor)`
+                        : `${numCuentasTotal.toLocaleString("es-ES")} cuentas listas (búsqueda en servidor)`
+                );
+            } catch (error) {
+                numCuentasTotal = 0;
+                cuentasDisponibles = false;
+                actualizarCamposCuenta();
+                actualizarEstadoCuentasUI(error.message, "error");
+            } finally {
+                cuentasCargando = false;
+                setRecargarCuentasActivo(true);
+            }
+        }
+
+        async function buscarCuentas(texto, limite = CUENTAS_MAX_RESULTADOS) {
+            const busqueda = String(texto || "").trim();
+
+            if (busqueda.length < CUENTAS_MIN_BUSQUEDA) {
+                return [];
+            }
+
+            const cacheKey = `${busqueda.toLowerCase()}|${limite}`;
+
+            if (busquedaCuentasCache.has(cacheKey)) {
+                return busquedaCuentasCache.get(cacheKey);
+            }
+
+            const response = await fetch(
+                `/api/cuentas/buscar?q=${encodeURIComponent(busqueda)}&limit=${limite}`
+            );
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                throw new Error(data.mensaje || "No se pudieron buscar cuentas");
+            }
+
+            const resultados = data.cuentas || [];
+            busquedaCuentasCache.set(cacheKey, resultados);
+            return resultados;
+        }
+
+        function fechaAsientoInput() {
+            return fechaHoyInput();
+        }
+
+        function fechaAsientoParaApi(valorFecha) {
+            return String(valorFecha || "").replace(/-/g, "");
+        }
+
+        function fechaAsientoDesdeApi(valorFecha) {
+            const texto = String(valorFecha || "").trim();
+
+            if (texto.length !== 8 || !/^\d+$/.test(texto)) {
+                return fechaAsientoInput();
+            }
+
+            return `${texto.slice(0, 4)}-${texto.slice(4, 6)}-${texto.slice(6, 8)}`;
+        }
+
+        function esLineaVacia(linea) {
+            return !linea.cuenta
+                && !linea.concepto
+                && (!Number.isFinite(linea.importe) || linea.importe <= 0);
+        }
+
+        function esLineaValida(linea) {
+            return Boolean(linea.cuenta)
+                && Boolean(linea.fecha)
+                && Boolean(linea.concepto)
+                && Number.isFinite(linea.importe)
+                && linea.importe > 0;
+        }
+
+        function descripcionParaEjemplo() {
+            const textoIA = descripcionIA?.value.trim() || "";
+
+            if (textoIA.length >= 5) {
+                return textoIA;
+            }
+
+            return leerLineas()
+                .filter(esLineaValida)
+                .map((linea) => linea.concepto)
+                .filter(Boolean)
+                .join(" | ");
+        }
+
+        function actualizarInfoEjemplosIA(numEjemplos) {
+            if (!ejemplosIAInfo) {
+                return;
+            }
+
+            if (!numEjemplos) {
+                ejemplosIAInfo.hidden = true;
+                ejemplosIAInfo.textContent = "";
+                return;
+            }
+
+            ejemplosIAInfo.textContent =
+                `${numEjemplos} ejemplo(s) guardado(s) para esta empresa. La IA usará los más parecidos.`;
+            ejemplosIAInfo.hidden = false;
+        }
+
+        async function guardarEjemploAsiento() {
+            const lineas = leerLineas().filter(esLineaValida);
+
+            if (lineas.length < 2) {
+                mostrarMensaje(
+                    "El ejemplo necesita al menos dos líneas válidas y cuadradas.",
+                    "error"
+                );
+                return;
+            }
+
+            let debe = 0;
+            let haber = 0;
+
+            for (const linea of lineas) {
+                if (linea.debe_haber === "D") {
+                    debe += linea.importe;
+                } else {
+                    haber += linea.importe;
+                }
+            }
+
+            if (Math.abs(debe - haber) >= 0.005) {
+                mostrarMensaje("El asiento debe estar cuadrado para guardarlo como ejemplo.", "error");
+                return;
+            }
+
+            if (btnGuardarEjemplo) {
+                btnGuardarEjemplo.disabled = true;
+            }
+
+            try {
+                const response = await fetch("/api/asiento/ejemplos", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        descripcion: descripcionParaEjemplo(),
+                        lineas,
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.mensaje || "No se pudo guardar el ejemplo");
+                }
+
+                actualizarInfoEjemplosIA(data.num_ejemplos || 0);
+                mostrarMensaje(
+                    data.mensaje || "Ejemplo guardado. La IA lo usará en futuras sugerencias.",
+                    "ok"
+                );
+            } catch (error) {
+                mostrarMensaje(error.message, "error");
+            } finally {
+                if (btnGuardarEjemplo) {
+                    btnGuardarEjemplo.disabled = false;
+                }
+            }
+        }
+
+        async function aplicarLineasSugeridas(lineas, opciones = {}) {
+            const modo = opciones.modo || "reemplazar";
+
+            if (modo !== "añadir" && modo !== "anadir") {
+                lineasBody.innerHTML = "";
+            }
+
+            const lineasValidas = (lineas || []).filter(
+                (linea) => Number(linea.importe) > 0
+            );
+
+            for (const linea of lineasValidas) {
+                const fila = crearFila();
+                await establecerDatosFila(fila, {
+                    cuenta: linea.cuenta,
+                    fecha: fechaAsientoDesdeApi(linea.fecha),
+                    importe: linea.importe,
+                    debe_haber: linea.debe_haber,
+                    concepto: linea.concepto,
+                });
+                lineasBody.appendChild(fila);
+            }
+
+            if (!lineasBody.children.length) {
+                anadirLinea();
+            }
+
+            reiniciarAsientoIdempotencyKey();
+            actualizarTotales();
+        }
+
+        async function importarCSV(modo) {
+            const archivo = archivoCSV?.files?.[0];
+
+            if (!archivo) {
+                mostrarMensaje("Selecciona un archivo para importar.", "error");
+                return;
+            }
+
+            const botonActivo = modo === "ia" ? btnAnalizarCSV : btnImportarCSV;
+            const botones = [btnImportarCSV, btnAnalizarCSV].filter(Boolean);
+            const signal = modo === "ia" ? iniciarPeticionIA() : null;
+
+            for (const boton of botones) {
+                boton.disabled = true;
+            }
+
+            const etiquetaFormato = /\.(n43|c43|csb|43)$/i.test(archivo.name)
+                ? "Norma 43"
+                : /\.(xlsx|xlsm|xls)$/i.test(archivo.name)
+                    ? "Excel"
+                    : "archivo";
+
+            mostrarMensaje(
+                modo === "ia"
+                    ? `Analizando ${etiquetaFormato} con IA...`
+                    : `Leyendo ${etiquetaFormato}...`,
+                "ok"
+            );
+
+            if (iaExplicacion && modo === "ia") {
+                iaExplicacion.hidden = true;
+                iaExplicacion.textContent = "";
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append("archivo", archivo);
+                formData.append("modo", modo);
+
+                if (cuentaBancoCSV?.value.trim()) {
+                    formData.append("cuenta_banco", cuentaBancoCSV.value.trim());
+                }
+
+                if (modo === "ia") {
+                    formData.append("descripcion", descripcionIA?.value.trim() || "");
+                    formData.append(
+                        "fecha",
+                        fechaAsientoParaApi(fechaIA?.value || fechaAsientoInput())
+                    );
+                }
+
+                const response = await fetch("/api/asiento/importar-csv", {
+                    method: "POST",
+                    body: formData,
+                    signal: signal || undefined,
+                });
+
+                const data = await response.json();
+                renderDiagnosticoImportacion(data, archivo);
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.mensaje || "No se pudo leer el archivo");
+                }
+
+                const diagnostico = data.diagnostico || {};
+                const filasValidas = Number(diagnostico.filas_validas ?? (data.lineas || []).length ?? 0);
+                const filasDescartadas = Number(diagnostico.filas_descartadas ?? 0);
+
+                if (modo === "ia") {
+                    await aplicarLineasSugeridas(data.lineas || []);
+
+                    if (iaExplicacion && data.explicacion) {
+                        const tipos = Array.isArray(data.tipos_operacion) && data.tipos_operacion.length
+                            ? `Tipos: ${data.tipos_operacion.join(", ")}. `
+                            : "";
+                        iaExplicacion.textContent = `${tipos}${data.explicacion}`;
+                        iaExplicacion.hidden = false;
+                    }
+
+                    const formato = data.formato === "norma43" ? "Norma 43" : "archivo";
+                    const avisoParcial = filasDescartadas
+                        ? ` ${filasDescartadas} fila(s) descartada(s); revisa el informe.`
+                        : "";
+                    mostrarMensaje(
+                        `${formato} analizado con IA. Revisa las líneas antes de confirmar.${avisoParcial}`,
+                        filasDescartadas ? "aviso" : "ok"
+                    );
+                } else {
+                    await aplicarLineasSugeridas(data.lineas || []);
+                    const formato = data.formato === "norma43" ? "movimientos bancarios" : "líneas";
+                    const avisoParcial = filasDescartadas
+                        ? ` ${filasDescartadas} fila(s) descartada(s); revisa el informe.`
+                        : "";
+                    mostrarMensaje(
+                        `Se han cargado ${filasValidas || data.num_filas || data.lineas.length} ${formato}.${avisoParcial}`,
+                        filasDescartadas ? "aviso" : "ok"
+                    );
+                }
+
+                if (csvInfo) {
+                    const formato = data.formato === "norma43"
+                        ? "Norma 43"
+                        : data.formato === "excel"
+                            ? "Excel"
+                            : "CSV";
+                    const columnas = Array.isArray(data.encabezados)
+                        ? data.encabezados.join(", ")
+                        : "";
+                    const cuentaBanco = data.cuenta_banco
+                        ? ` Cuenta banco: ${data.cuenta_banco}.`
+                        : "";
+                    const resumenImportacion = filasDescartadas
+                        ? ` ${filasDescartadas} fila(s) descartada(s).`
+                        : "";
+                    csvInfo.textContent = columnas
+                        ? `Archivo: ${archivo.name} (${formato}). Columnas: ${columnas}.${cuentaBanco}${resumenImportacion}`
+                        : `Archivo: ${archivo.name} (${formato}).${cuentaBanco}${resumenImportacion}`;
+                    csvInfo.hidden = false;
+                }
+            } catch (error) {
+                if (!esErrorPeticionCancelada(error)) {
+                    mostrarMensaje(error.message, "error");
+                }
+            } finally {
+                if (modo === "ia") {
+                    finalizarPeticionIA();
+                }
+
+                for (const boton of botones) {
+                    boton.disabled = false;
+                }
+
+                if (botonActivo) {
+                    botonActivo.disabled = false;
+                }
+            }
+        }
+
+        async function sugerirAsientoIA() {
+            if (!descripcionIA || !btnSugerirIA) {
+                return;
+            }
+
+            const descripcion = descripcionIA.value.trim();
+            const esCuadre = /\b(cuadra|cuadrar|equilibra|equilibrar|compensa|compensar)\b/i.test(descripcion);
+
+            if (descripcion.length < 10 && !esCuadre) {
+                mostrarMensaje("Describe la operación con un poco más de detalle.", "error");
+                return;
+            }
+
+            if (!descripcion) {
+                mostrarMensaje("Escribe qué quieres hacer con el asiento.", "error");
+                return;
+            }
+
+            btnSugerirIA.disabled = true;
+            const signal = iniciarPeticionIA();
+            mostrarMensaje("Generando sugerencia con IA...", "ok");
+
+            if (iaExplicacion) {
+                iaExplicacion.hidden = true;
+                iaExplicacion.textContent = "";
+                iaExplicacion.classList.remove("pregunta");
+            }
+
+            try {
+                const response = await fetch("/api/asiento/sugerir", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        descripcion,
+                        fecha: fechaAsientoParaApi(fechaIA?.value || fechaAsientoInput()),
+                        lineas_actuales: leerLineas().filter(esLineaValida),
+                    }),
+                    signal,
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.mensaje || "No se pudo generar la sugerencia");
+                }
+
+                const modo = data.modo || "reemplazar";
+                const textoFeedback = data.pregunta || data.explicacion || "";
+
+                if (modo === "pregunta" || modo === "info") {
+                    if (iaExplicacion && textoFeedback) {
+                        iaExplicacion.textContent = textoFeedback;
+                        iaExplicacion.classList.toggle("pregunta", modo === "pregunta");
+                        iaExplicacion.hidden = false;
+                    }
+
+                    mostrarMensaje(
+                        modo === "info"
+                            ? (data.explicacion || "El asiento ya cuadra.")
+                            : "Necesito que indiques en qué cuenta cuadrar.",
+                        modo === "info" ? "ok" : "aviso"
+                    );
+                    return;
+                }
+
+                if (modo === "vaciar") {
+                    lineasBody.innerHTML = "";
+                    anadirLinea();
+                    actualizarTotales();
+
+                    if (iaExplicacion && data.explicacion) {
+                        iaExplicacion.textContent = data.explicacion;
+                        iaExplicacion.hidden = false;
+                    }
+
+                    mostrarMensaje(
+                        data.explicacion || "Se han borrado todas las líneas del asiento.",
+                        "ok"
+                    );
+                    return;
+                }
+
+                await aplicarLineasSugeridas(data.lineas || [], { modo });
+
+                if (iaExplicacion && data.explicacion) {
+                    const tipos = Array.isArray(data.tipos_operacion) && data.tipos_operacion.length
+                        ? `Tipos: ${data.tipos_operacion.join(", ")}. `
+                        : "";
+                    iaExplicacion.textContent = `${tipos}${data.explicacion}`;
+                    iaExplicacion.hidden = false;
+                }
+
+                mostrarMensaje(
+                    modo === "añadir" || modo === "anadir"
+                        ? "Líneas añadidas al asiento. Revisa el cuadre antes de confirmar."
+                        : "Sugerencia aplicada. Revisa las líneas antes de confirmar.",
+                    "ok"
+                );
+            } catch (error) {
+                if (!esErrorPeticionCancelada(error)) {
+                    mostrarMensaje(error.message, "error");
+                }
+            } finally {
+                finalizarPeticionIA();
+                btnSugerirIA.disabled = false;
+            }
+        }
+
+        function fechaHoyInput() {
+            const hoy = new Date();
+            const mes = String(hoy.getMonth() + 1).padStart(2, "0");
+            const dia = String(hoy.getDate()).padStart(2, "0");
+            return `${hoy.getFullYear()}-${mes}-${dia}`;
+        }
+
+        function mostrarMensaje(texto, tipo) {
+            mensaje.textContent = texto;
+            mensaje.className = `mensaje ${tipo}`;
+        }
+
+        function escapeHtml(texto) {
+            return String(texto ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        function limpiarDiagnosticoCSV() {
+            if (!csvDiagnostico) {
+                return;
+            }
+
+            csvDiagnostico.hidden = true;
+            csvDiagnostico.innerHTML = "";
+        }
+
+        function etiquetaEstadoImportacion(estado) {
+            const etiquetas = {
+                ok: "OK",
+                error: "Error",
+                cuenta_no_encontrada: "Cuenta no encontrada",
+                sin_cuenta_banco: "Sin cuenta 572",
+                datos: "Datos",
+            };
+
+            return etiquetas[estado] || estado || "-";
+        }
+
+        function valorPreview(item, campo) {
+            const linea = item.linea || {};
+            const movimiento = item.movimiento || {};
+            const valores = item.valores || {};
+
+            if (campo === "cuenta") {
+                return linea.cuenta || valores.cuenta || valores.Cuenta || "";
+            }
+
+            if (campo === "fecha") {
+                return linea.fecha || movimiento.fecha || valores.fecha || valores.Fecha || "";
+            }
+
+            if (campo === "importe") {
+                return linea.importe ?? movimiento.importe ?? valores.importe ?? valores.Importe ?? "";
+            }
+
+            if (campo === "debe_haber") {
+                return linea.debe_haber || valores.debe_haber || valores["Debe/Haber"] || "";
+            }
+
+            if (campo === "concepto") {
+                return linea.concepto || movimiento.descripcion || valores.concepto || valores.Concepto || item.mensaje || "";
+            }
+
+            return "";
+        }
+
+        function renderDiagnosticoImportacion(data, archivo) {
+            if (!csvDiagnostico) {
+                return;
+            }
+
+            const diagnostico = data.diagnostico || {};
+
+            if (!Object.keys(diagnostico).length && !Array.isArray(data.encabezados)) {
+                limpiarDiagnosticoCSV();
+                return;
+            }
+
+            const columnas = Array.isArray(diagnostico.columnas_detectadas)
+                ? diagnostico.columnas_detectadas
+                : [];
+            const errores = Array.isArray(diagnostico.errores) ? diagnostico.errores : [];
+            const cuentasNoEncontradas = Array.isArray(diagnostico.cuentas_no_encontradas)
+                ? diagnostico.cuentas_no_encontradas
+                : [];
+            const sugerenciasBanco = Array.isArray(diagnostico.sugerencias_cuenta_banco)
+                ? diagnostico.sugerencias_cuenta_banco
+                : [];
+            const preview = Array.isArray(diagnostico.previsualizacion)
+                ? diagnostico.previsualizacion
+                : [];
+            const filasTotal = Number(diagnostico.filas_total ?? data.num_filas ?? 0);
+            const filasValidas = Number(diagnostico.filas_validas ?? (data.lineas || []).length ?? 0);
+            const filasDescartadas = Number(diagnostico.filas_descartadas ?? 0);
+            const cuentaBanco = data.cuenta_banco || diagnostico.cuenta_banco || "";
+
+            const columnasHtml = columnas.length
+                ? `<div class="csv-columnas">${columnas.map(columna => `
+                    <span class="csv-chip">${escapeHtml(columna.campo)}: ${escapeHtml(columna.columna)}</span>
+                `).join("")}</div>`
+                : `<div class="csv-alertas"><div class="csv-alerta">No se detectaron columnas suficientes para cargar líneas directamente.</div></div>`;
+
+            const cuentaBancoHtml = cuentaBanco
+                ? `<div class="csv-alertas"><div class="csv-alerta">Cuenta bancaria 572 detectada: ${escapeHtml(cuentaBanco)}</div></div>`
+                : "";
+            const sugerenciasHtml = sugerenciasBanco.length
+                ? `
+                    <h4>Sugerencias cuenta 572</h4>
+                    <div class="csv-sugerencias-banco">
+                        ${sugerenciasBanco.map(cuenta => `
+                            <button type="button" class="csv-sugerencia-banco" data-cuenta-banco="${escapeHtml(cuenta.codigo)}">
+                                ${escapeHtml(cuenta.codigo)} · ${escapeHtml(cuenta.nombre || "")}
+                            </button>
+                        `).join("")}
+                    </div>
+                `
+                : "";
+            const cuentasHtml = cuentasNoEncontradas.length
+                ? `
+                    <h4>Cuentas no encontradas</h4>
+                    <div class="csv-alertas">
+                        ${cuentasNoEncontradas.slice(0, 8).map(item => `
+                            <div class="csv-alerta">Fila ${escapeHtml(item.fila)} · ${escapeHtml(item.cuenta)} · ${escapeHtml(item.concepto || "")}</div>
+                        `).join("")}
+                    </div>
+                `
+                : "";
+            const erroresHtml = errores.length
+                ? `
+                    <h4>Filas descartadas</h4>
+                    <div class="csv-alertas">
+                        ${errores.slice(0, 8).map(item => `
+                            <div class="csv-alerta">Fila ${escapeHtml(item.fila || "-")}: ${escapeHtml(item.mensaje)}</div>
+                        `).join("")}
+                    </div>
+                `
+                : "";
+            const previewHtml = preview.length
+                ? `
+                    <h4>Previsualización</h4>
+                    <table class="csv-preview">
+                        <thead>
+                            <tr>
+                                <th>Fila</th>
+                                <th>Estado</th>
+                                <th>Cuenta</th>
+                                <th>Fecha</th>
+                                <th>Importe</th>
+                                <th>D/H</th>
+                                <th>Concepto</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${preview.map(item => `
+                                <tr>
+                                    <td>${escapeHtml(item.fila || "-")}</td>
+                                    <td class="csv-estado-${escapeHtml(item.estado)}">${escapeHtml(etiquetaEstadoImportacion(item.estado))}</td>
+                                    <td>${escapeHtml(valorPreview(item, "cuenta") || "-")}</td>
+                                    <td>${escapeHtml(valorPreview(item, "fecha") || "-")}</td>
+                                    <td>${escapeHtml(valorPreview(item, "importe") || "-")}</td>
+                                    <td>${escapeHtml(valorPreview(item, "debe_haber") || "-")}</td>
+                                    <td>${escapeHtml(valorPreview(item, "concepto") || "-")}</td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                `
+                : "";
+
+            csvDiagnostico.innerHTML = `
+                <h4>Informe de importación</h4>
+                <div class="csv-diagnostico-grid">
+                    <div class="csv-diagnostico-dato"><span>Archivo</span>${escapeHtml(archivo?.name || "-")}</div>
+                    <div class="csv-diagnostico-dato"><span>Filas leídas</span>${filasTotal}</div>
+                    <div class="csv-diagnostico-dato"><span>Líneas válidas</span>${filasValidas}</div>
+                    <div class="csv-diagnostico-dato"><span>Descartadas</span>${filasDescartadas}</div>
+                </div>
+                ${columnasHtml}
+                ${cuentaBancoHtml}
+                ${sugerenciasHtml}
+                ${cuentasHtml}
+                ${erroresHtml}
+                ${previewHtml}
+            `;
+            csvDiagnostico.hidden = false;
+        }
+
+        function cerrarPreconfirmAsiento() {
+            modalPreconfirmAsiento.classList.remove("activo");
+            modalPreconfirmAsiento.hidden = true;
+            payloadPreconfirmAsiento = null;
+        }
+
+        function nombreEmpresaActual() {
+            if (empresaSelector) {
+                return empresaSelector.options[empresaSelector.selectedIndex]?.textContent.trim() || "Sin empresa";
+            }
+
+            return empresaActual?.nombre || empresaActual?.id || "Sin empresa";
+        }
+
+        function totalesLineas(lineas) {
+            return lineas.reduce((totales, linea) => {
+                if (linea.debe_haber === "D") {
+                    totales.debe += Number(linea.importe || 0);
+                } else {
+                    totales.haber += Number(linea.importe || 0);
+                }
+
+                return totales;
+            }, { debe: 0, haber: 0 });
+        }
+
+        function fechaFutura(valorFecha) {
+            if (!valorFecha) {
+                return false;
+            }
+
+            const fecha = new Date(`${valorFecha}T00:00:00`);
+            const hoy = new Date(`${fechaHoyInput()}T00:00:00`);
+            return fecha > hoy;
+        }
+
+        function advertenciasAsiento(lineas, totales) {
+            const avisos = [];
+            const fechas = [...new Set(lineas.map(linea => linea.fecha).filter(Boolean))];
+
+            if (!empresaActual?.id && !empresaSelector?.value) {
+                avisos.push("No hay empresa destino seleccionada.");
+            }
+
+            if (fechas.length > 1) {
+                avisos.push("El asiento contiene varias fechas.");
+            }
+
+            if (fechas.some(fechaFutura)) {
+                avisos.push("Hay líneas con fecha futura.");
+            }
+
+            if (Math.abs(totales.debe - totales.haber) >= 0.005) {
+                avisos.push(`El asiento no cuadra: debe ${totales.debe.toFixed(2)} €, haber ${totales.haber.toFixed(2)} €.`);
+            }
+
+            if (lineas.length > 30) {
+                avisos.push("El asiento tiene más de 30 líneas.");
+            }
+
+            if (guardarEjemploIA?.checked && descripcionParaEjemplo().length < 5) {
+                avisos.push("Se guardará como ejemplo IA con una descripción generada automáticamente.");
+            }
+
+            return avisos.slice(0, 8);
+        }
+
+        function abrirPreconfirmAsiento(lineas, advertenciasServidor = []) {
+            const totales = totalesLineas(lineas);
+            const avisos = [
+                ...advertenciasAsiento(lineas, totales),
+                ...advertenciasServidor,
+            ].filter((aviso, indice, lista) => aviso && lista.indexOf(aviso) === indice);
+            payloadPreconfirmAsiento = {
+                idempotency_key: obtenerAsientoIdempotencyKey(),
+                lineas,
+                guardar_ejemplo: Boolean(guardarEjemploIA?.checked),
+                descripcion_ejemplo: descripcionParaEjemplo(),
+            };
+            preconfirmAsientoSubtitulo.textContent = `${lineas.length} línea(s) · Debe ${totales.debe.toFixed(2)} € · Haber ${totales.haber.toFixed(2)} €`;
+
+            const alertasHtml = avisos.length
+                ? `<div class="preconfirm-alertas">${avisos.map(aviso => `<div class="preconfirm-alerta">${escapeHtml(aviso)}</div>`).join("")}</div>`
+                : "";
+            const lineasHtml = lineas.map(linea => `
+                <tr>
+                    <td>${escapeHtml(linea.cuenta)}</td>
+                    <td>${escapeHtml(linea.fecha)}</td>
+                    <td>${escapeHtml(linea.concepto)}</td>
+                    <td>${escapeHtml(linea.debe_haber)}</td>
+                    <td class="preconfirm-numero">${Number(linea.importe || 0).toFixed(2)} €</td>
+                </tr>
+            `).join("");
+
+            preconfirmAsientoContenido.innerHTML = `
+                <div class="preconfirm-grid">
+                    <div class="preconfirm-dato"><span>Empresa destino</span>${escapeHtml(nombreEmpresaActual())}</div>
+                    <div class="preconfirm-dato"><span>Líneas</span>${lineas.length}</div>
+                    <div class="preconfirm-dato"><span>Debe</span>${totales.debe.toFixed(2)} €</div>
+                    <div class="preconfirm-dato"><span>Haber</span>${totales.haber.toFixed(2)} €</div>
+                    <div class="preconfirm-dato"><span>Cuadre</span>${Math.abs(totales.debe - totales.haber) < 0.005 ? "Cuadrado" : "Descuadrado"}</div>
+                </div>
+                ${alertasHtml}
+                <table class="preconfirm-tabla">
+                    <thead>
+                        <tr>
+                            <th>Cuenta</th>
+                            <th>Fecha</th>
+                            <th>Concepto</th>
+                            <th>D/H</th>
+                            <th>Importe</th>
+                        </tr>
+                    </thead>
+                    <tbody>${lineasHtml}</tbody>
+                </table>
+            `;
+            modalPreconfirmAsiento.hidden = false;
+            modalPreconfirmAsiento.classList.add("activo");
+        }
+
+        async function obtenerCuentasParaBusqueda(texto, dropdown, limite = CUENTAS_MAX_RESULTADOS) {
+            if (cuentasCargando) {
+                return [];
+            }
+
+            if (!cuentasDisponibles) {
+                return [];
+            }
+
+            const busqueda = String(texto || "").trim();
+
+            if (busqueda.length < CUENTAS_MIN_BUSQUEDA) {
+                return [];
+            }
+
+            try {
+                return await buscarCuentas(busqueda, limite);
+            } catch (error) {
+                if (dropdown) {
+                    dropdown.innerHTML = `
+                        <button type="button" class="cuenta-opcion" disabled>
+                            ${escapeHtml(error.message)}
+                        </button>
+                    `;
+                    dropdown.hidden = false;
+                }
+
+                return [];
+            }
+        }
+
+        function cerrarDropdownsCuenta(excepto) {
+            document.querySelectorAll(".cuenta-dropdown-principal, .cuenta-dropdown-contrapartida").forEach((dropdown) => {
+                if (dropdown !== excepto) {
+                    dropdown.hidden = true;
+                }
+            });
+        }
+
+        function renderCuentaDropdown(dropdown, lista, textoBusqueda = "") {
+            const busqueda = textoBusqueda.trim();
+
+            if (!cuentasDisponibles) {
+                dropdown.innerHTML = `
+                    <button type="button" class="cuenta-opcion" disabled>
+                        ${cuentasCargando ? "Cargando cuentas..." : "Cuentas no disponibles"}
+                    </button>
+                `;
+                dropdown.hidden = false;
+                return;
+            }
+
+            if (busqueda.length < CUENTAS_MIN_BUSQUEDA) {
+                dropdown.innerHTML = `
+                    <button type="button" class="cuenta-opcion" disabled>
+                        Escribe al menos ${CUENTAS_MIN_BUSQUEDA} caracteres para buscar
+                    </button>
+                `;
+                dropdown.hidden = false;
+                return;
+            }
+
+            if (!lista.length) {
+                dropdown.innerHTML = `
+                    <button type="button" class="cuenta-opcion" disabled>
+                        No hay cuentas que coincidan
+                    </button>
+                `;
+                dropdown.hidden = false;
+                return;
+            }
+
+            const avisoLimite = lista.length >= CUENTAS_MAX_RESULTADOS
+                ? `<button type="button" class="cuenta-opcion" disabled>Mostrando las primeras ${CUENTAS_MAX_RESULTADOS} coincidencias</button>`
+                : "";
+
+            dropdown.innerHTML = avisoLimite + lista.map((cuenta) => {
+                const tipo = cuenta.tipo_etiqueta || cuenta.tipo || "";
+                const tipoHtml = tipo
+                    ? `<span class="cuenta-tipo">${escapeHtml(tipo)}</span>`
+                    : "";
+
+                return `
+                <button type="button" class="cuenta-opcion"
+                    data-codigo="${escapeHtml(cuenta.codigo)}"
+                    data-nombre="${escapeHtml(cuenta.nombre ?? "")}">
+                    <strong>${escapeHtml(cuenta.codigo)}</strong>
+                    · ${escapeHtml(cuenta.nombre ?? "")}
+                    ${tipoHtml}
+                </button>
+            `;
+            }).join("");
+
+            dropdown.hidden = false;
+        }
+
+        function selectoresCuenta(esContrapartida = false) {
+            if (esContrapartida) {
+                return {
+                    combobox: ".cuenta-combobox-contrapartida",
+                    busqueda: ".campo-contrapartida-busqueda",
+                    codigo: ".campo-contrapartida",
+                    dropdown: ".cuenta-dropdown-contrapartida",
+                    datasetKey: "cuentaContrapartidaSeleccionada",
+                };
+            }
+
+            return {
+                combobox: ".cuenta-combobox-principal",
+                busqueda: ".campo-cuenta-busqueda",
+                codigo: ".campo-cuenta",
+                dropdown: ".cuenta-dropdown-principal",
+                datasetKey: "cuentaSeleccionada",
+            };
+        }
+
+        function seleccionarCuenta(fila, cuenta, esContrapartida = false) {
+            const selectores = selectoresCuenta(esContrapartida);
+            const busqueda = fila.querySelector(selectores.busqueda);
+            const codigo = fila.querySelector(selectores.codigo);
+            const dropdown = fila.querySelector(selectores.dropdown);
+
+            codigo.value = cuenta.codigo;
+            busqueda.value = `${cuenta.codigo} - ${cuenta.nombre ?? ""}`;
+            fila.dataset[selectores.datasetKey] = `${cuenta.codigo} - ${cuenta.nombre ?? ""}`;
+            dropdown.hidden = true;
+            reiniciarAsientoIdempotencyKey();
+        }
+
+        function initCuentaCombobox(fila, esContrapartida = false, onSelect = null) {
+            const selectores = selectoresCuenta(esContrapartida);
+            const combobox = fila.querySelector(selectores.combobox);
+            const busqueda = fila.querySelector(selectores.busqueda);
+            const codigo = fila.querySelector(selectores.codigo);
+            const dropdown = fila.querySelector(selectores.dropdown);
+
+            if (!combobox) {
+                return;
+            }
+
+            busqueda.disabled = !camposCuentaHabilitados();
+            busqueda.placeholder = esContrapartida
+                ? textoPlaceholderContrapartida()
+                : textoPlaceholderCuentaPrincipal();
+            let debounceBusqueda = null;
+
+            busqueda.addEventListener("focus", async () => {
+                cerrarDropdownsCuenta(dropdown);
+                dropdown.innerHTML = `
+                    <button type="button" class="cuenta-opcion" disabled>
+                        Escribe al menos ${CUENTAS_MIN_BUSQUEDA} caracteres...
+                    </button>
+                `;
+                dropdown.hidden = false;
+
+                if (busqueda.value.trim().length >= CUENTAS_MIN_BUSQUEDA) {
+                    const lista = await obtenerCuentasParaBusqueda(busqueda.value, dropdown);
+                    renderCuentaDropdown(dropdown, lista, busqueda.value);
+                }
+            });
+
+            busqueda.addEventListener("input", () => {
+                const texto = busqueda.value.trim();
+
+                if (fila.dataset[selectores.datasetKey] && texto !== fila.dataset[selectores.datasetKey]) {
+                    codigo.value = "";
+                    delete fila.dataset[selectores.datasetKey];
+
+                    if (esContrapartida) {
+                        sincronizarContrapartida(fila);
+                    }
+                }
+
+                clearTimeout(debounceBusqueda);
+
+                if (texto.length < CUENTAS_MIN_BUSQUEDA) {
+                    dropdown.innerHTML = `
+                        <button type="button" class="cuenta-opcion" disabled>
+                            Escribe al menos ${CUENTAS_MIN_BUSQUEDA} caracteres...
+                        </button>
+                    `;
+                    dropdown.hidden = false;
+                    return;
+                }
+
+                dropdown.innerHTML = `
+                    <button type="button" class="cuenta-opcion" disabled>
+                        Buscando cuentas...
+                    </button>
+                `;
+                dropdown.hidden = false;
+
+                debounceBusqueda = setTimeout(async () => {
+                    const lista = await obtenerCuentasParaBusqueda(texto, dropdown);
+                    renderCuentaDropdown(dropdown, lista, texto);
+                }, 180);
+            });
+
+            dropdown.addEventListener("click", (event) => {
+                const opcion = event.target.closest(".cuenta-opcion");
+
+                if (!opcion || opcion.disabled || !opcion.dataset.codigo) {
+                    return;
+                }
+
+                const cuenta = {
+                    codigo: opcion.dataset.codigo,
+                    nombre: opcion.dataset.nombre || "",
+                };
+
+                seleccionarCuenta(fila, cuenta, esContrapartida);
+
+                if (onSelect) {
+                    onSelect(cuenta);
+                }
+            });
+
+            busqueda.addEventListener("keydown", async (event) => {
+                if (event.key === "Escape") {
+                    dropdown.hidden = true;
+                    return;
+                }
+
+                if (event.key !== "Enter") {
+                    return;
+                }
+
+                event.preventDefault();
+                const lista = await obtenerCuentasParaBusqueda(busqueda.value, dropdown);
+
+                if (lista.length === 1) {
+                    seleccionarCuenta(fila, lista[0], esContrapartida);
+
+                    if (onSelect) {
+                        onSelect(lista[0]);
+                    }
+                }
+            });
+
+            combobox.addEventListener("click", (event) => {
+                event.stopPropagation();
+            });
+        }
+
+        function generarIdLinea() {
+            return `linea-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        }
+
+        function leerDatosFila(fila) {
+            return {
+                cuenta: fila.querySelector(".campo-cuenta")?.value.trim() || "",
+                contrapartida: fila.querySelector(".campo-contrapartida")?.value.trim() || "",
+                fecha: fila.querySelector(".campo-fecha")?.value || "",
+                importe: parseFloat(fila.querySelector(".campo-importe")?.value || "0"),
+                debe_haber: fila.querySelector(".campo-debe-haber")?.value || "D",
+                concepto: fila.querySelector(".campo-concepto")?.value.trim() || "",
+            };
+        }
+
+        async function establecerDatosFila(fila, datos) {
+            let cuenta = null;
+
+            if (datos.cuenta) {
+                try {
+                    const coincidencias = await buscarCuentas(datos.cuenta, 5);
+                    cuenta = coincidencias.find((item) => item.codigo === datos.cuenta) || null;
+                } catch (error) {
+                    cuenta = null;
+                }
+            }
+
+            if (cuenta) {
+                seleccionarCuenta(fila, cuenta);
+            } else if (datos.cuenta) {
+                const codigo = fila.querySelector(".campo-cuenta");
+                const busqueda = fila.querySelector(".campo-cuenta-busqueda");
+                codigo.value = datos.cuenta;
+                busqueda.value = datos.cuenta;
+            }
+
+            fila.querySelector(".campo-fecha").value = datos.fecha || fechaHoyInput();
+            fila.querySelector(".campo-importe").value = (
+                Number.isFinite(datos.importe) && datos.importe > 0 ? datos.importe : ""
+            );
+            fila.querySelector(".campo-debe-haber").value = datos.debe_haber === "H" ? "H" : "D";
+            fila.querySelector(".campo-concepto").value = datos.concepto || "";
+        }
+
+        function obtenerFilaContrapartida(filaPrincipal) {
+            const padreId = filaPrincipal.dataset.lineaId;
+
+            if (!padreId) {
+                return null;
+            }
+
+            return lineasBody.querySelector(
+                `tr[data-linea-tipo="contrapartida"][data-linea-padre-id="${padreId}"]`
+            );
+        }
+
+        function limpiarContrapartida(filaPrincipal) {
+            const busqueda = filaPrincipal.querySelector(".campo-contrapartida-busqueda");
+            const codigo = filaPrincipal.querySelector(".campo-contrapartida");
+
+            if (busqueda) {
+                busqueda.value = "";
+            }
+
+            if (codigo) {
+                codigo.value = "";
+            }
+
+            delete filaPrincipal.dataset.cuentaContrapartidaSeleccionada;
+            obtenerFilaContrapartida(filaPrincipal)?.remove();
+        }
+
+        async function sincronizarContrapartida(filaPrincipal) {
+            const datos = leerDatosFila(filaPrincipal);
+            const filaContrapartida = obtenerFilaContrapartida(filaPrincipal);
+
+            if (!datos.contrapartida) {
+                filaContrapartida?.remove();
+                actualizarTotales();
+                return;
+            }
+
+            const cuentaInfo = datos.contrapartida
+                ? (await buscarCuentas(datos.contrapartida, 5))
+                    .find((item) => item.codigo === datos.contrapartida) || null
+                : null;
+            const datosContrapartida = {
+                cuenta: datos.contrapartida,
+                fecha: datos.fecha,
+                importe: datos.importe,
+                debe_haber: datos.debe_haber === "D" ? "H" : "D",
+                concepto: datos.concepto,
+            };
+
+            let filaNueva = filaContrapartida;
+
+            if (!filaNueva) {
+                filaNueva = crearFila({
+                    tipo: "contrapartida",
+                    padreId: filaPrincipal.dataset.lineaId,
+                });
+                filaPrincipal.insertAdjacentElement("afterend", filaNueva);
+            }
+
+            await establecerDatosFila(filaNueva, datosContrapartida);
+
+            if (cuentaInfo) {
+                seleccionarCuenta(filaNueva, cuentaInfo);
+            }
+
+            actualizarTotales();
+        }
+
+        function crearFila(opciones = {}) {
+            const esContrapartida = opciones.tipo === "contrapartida";
+            const fila = document.createElement("tr");
+            const placeholderCuenta = textoPlaceholderCuentaPrincipal();
+            const placeholderContrapartida = textoPlaceholderContrapartida();
+            const camposHabilitados = camposCuentaHabilitados();
+
+            if (esContrapartida) {
+                fila.dataset.lineaTipo = "contrapartida";
+                fila.dataset.lineaPadreId = opciones.padreId;
+                fila.classList.add("fila-contrapartida");
+            } else {
+                fila.dataset.lineaId = opciones.lineaId || generarIdLinea();
+                fila.dataset.lineaTipo = "principal";
+            }
+
+            const celdaContrapartida = esContrapartida ? `
+                <td data-label="Contrapartida" class="col-contrapartida">
+                    <span class="etiqueta-auto">Contrapartida</span>
+                </td>
+            ` : `
+                <td data-label="Contrapartida" class="col-contrapartida">
+                    <div class="cuenta-combobox cuenta-combobox-contrapartida">
+                        <input type="search" class="campo-contrapartida-busqueda"
+                            placeholder="${placeholderContrapartida}" autocomplete="off"
+                            ${camposHabilitados ? "" : "disabled"}>
+                        <input type="hidden" class="campo-contrapartida" value="">
+                        <div class="cuenta-dropdown-contrapartida" hidden></div>
+                    </div>
+                </td>
+            `;
+
+            fila.innerHTML = `
+                <td data-label="Cuenta" class="col-cuenta">
+                    <div class="cuenta-combobox cuenta-combobox-principal">
+                        <input type="search" class="campo-cuenta-busqueda"
+                            placeholder="${placeholderCuenta}" autocomplete="off"
+                            ${camposHabilitados ? "" : "disabled"}>
+                        <input type="hidden" class="campo-cuenta" value="">
+                        <div class="cuenta-dropdown-principal" hidden></div>
+                    </div>
+                </td>
+                ${celdaContrapartida}
+                <td data-label="Fecha">
+                    <input type="date" class="campo-fecha" value="${fechaHoyInput()}">
+                </td>
+                <td data-label="Importe" class="col-importe">
+                    <input type="number" class="campo-importe" min="0.01" step="0.01" placeholder="0.00">
+                </td>
+                <td data-label="Debe/Haber" class="col-debe-haber">
+                    <select class="campo-debe-haber">
+                        <option value="D">Debe</option>
+                        <option value="H">Haber</option>
+                    </select>
+                </td>
+                <td data-label="Concepto">
+                    <input type="text" class="campo-concepto" placeholder="Descripción del apunte">
+                </td>
+                <td data-label="Acciones" class="col-acciones">
+                    <button type="button" class="btn-eliminar">Quitar</button>
+                </td>
+            `;
+
+            if (esContrapartida) {
+                fila.querySelector(".campo-cuenta-busqueda").readOnly = true;
+                fila.querySelector(".campo-fecha").readOnly = true;
+                fila.querySelector(".campo-importe").readOnly = true;
+                fila.querySelector(".campo-debe-haber").disabled = true;
+                fila.querySelector(".campo-concepto").readOnly = true;
+            }
+
+            fila.querySelector(".btn-eliminar").addEventListener("click", () => {
+                if (esContrapartida) {
+                    const filaPrincipal = lineasBody.querySelector(
+                        `tr[data-linea-id="${fila.dataset.lineaPadreId}"]`
+                    );
+                    limpiarContrapartida(filaPrincipal);
+                } else {
+                    obtenerFilaContrapartida(fila)?.remove();
+                }
+
+                fila.remove();
+
+                if (!lineasBody.children.length) {
+                    anadirLinea();
+                }
+
+                reiniciarAsientoIdempotencyKey();
+                actualizarTotales();
+            });
+
+            fila.querySelectorAll("input, select").forEach((campo) => {
+                campo.addEventListener("input", () => {
+                    reiniciarAsientoIdempotencyKey();
+
+                    if (!esContrapartida && fila.querySelector(".campo-contrapartida")?.value) {
+                        sincronizarContrapartida(fila);
+                    } else {
+                        actualizarTotales();
+                    }
+                });
+
+                campo.addEventListener("change", () => {
+                    reiniciarAsientoIdempotencyKey();
+
+                    if (!esContrapartida && fila.querySelector(".campo-contrapartida")?.value) {
+                        sincronizarContrapartida(fila);
+                    } else {
+                        actualizarTotales();
+                    }
+                });
+            });
+
+            initCuentaCombobox(fila, false);
+
+            if (!esContrapartida) {
+                initCuentaCombobox(fila, true, () => {
+                    sincronizarContrapartida(fila);
+                });
+            }
+
+            aplicarEstadoCuentaFila(fila);
+
+            return fila;
+        }
+
+        function anadirLinea() {
+            lineasBody.appendChild(crearFila());
+            reiniciarAsientoIdempotencyKey();
+            actualizarTotales();
+        }
+
+        function borrarTodasLineas() {
+            const numLineas = lineasBody.querySelectorAll("tr").length;
+
+            if (!numLineas) {
+                anadirLinea();
+                return;
+            }
+
+            const confirmar = window.confirm(
+                "¿Borrar todas las líneas del asiento? Esta acción no se puede deshacer."
+            );
+
+            if (!confirmar) {
+                return;
+            }
+
+            lineasBody.innerHTML = "";
+            anadirLinea();
+            reiniciarAsientoIdempotencyKey();
+            mostrarMensaje("Se han borrado todas las líneas del asiento.", "ok");
+        }
+
+        function leerLineas() {
+            return Array.from(lineasBody.querySelectorAll("tr")).map((fila) => ({
+                cuenta: fila.querySelector(".campo-cuenta").value.trim(),
+                fecha: fila.querySelector(".campo-fecha").value,
+                importe: parseFloat(fila.querySelector(".campo-importe").value || "0"),
+                debe_haber: fila.querySelector(".campo-debe-haber").value,
+                concepto: fila.querySelector(".campo-concepto").value.trim(),
+            }));
+        }
+
+        function actualizarTotales() {
+            let debe = 0;
+            let haber = 0;
+            const lineas = leerLineas();
+            const lineasValidas = lineas.filter(esLineaValida);
+            const lineasInvalidas = lineas.filter(
+                (linea) => !esLineaVacia(linea) && !esLineaValida(linea)
+            );
+
+            for (const fila of lineasBody.querySelectorAll("tr")) {
+                const importe = parseFloat(fila.querySelector(".campo-importe")?.value || "0");
+                const campoImporte = fila.querySelector(".campo-importe");
+                const incompleta = !esLineaVacia(leerDatosFila(fila))
+                    && (!Number.isFinite(importe) || importe <= 0);
+
+                if (campoImporte) {
+                    campoImporte.classList.toggle("importe-invalido", incompleta);
+                }
+            }
+
+            for (const linea of lineasValidas) {
+                if (linea.debe_haber === "D") {
+                    debe += linea.importe;
+                } else {
+                    haber += linea.importe;
+                }
+            }
+
+            totalDebe.textContent = debe.toFixed(2);
+            totalHaber.textContent = haber.toFixed(2);
+
+            const cuadrado = lineasValidas.length > 0 && Math.abs(debe - haber) < 0.005;
+            estadoCuadre.textContent = cuadrado ? "Cuadrado" : "Descuadrado";
+            estadoCuadre.className = cuadrado ? "cuadrado" : "descuadrado";
+            btnConfirmar.disabled = !cuadrado || lineasInvalidas.length > 0;
+        }
+
+        async function validarAsientoAntesDeConfirmar(lineas) {
+            const response = await fetch("/api/asiento/validar", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ lineas }),
+            });
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                throw new Error(data.mensaje || "No se pudo validar el asiento");
+            }
+
+            return data.advertencias || [];
+        }
+
+        async function confirmarAsiento() {
+            const lineas = leerLineas().filter(esLineaValida);
+
+            if (!lineas.length) {
+                mostrarMensaje("El asiento no tiene líneas con importe mayor que 0 €.", "error");
+                return;
+            }
+
+            for (const [indice, linea] of lineas.entries()) {
+                if (!linea.cuenta) {
+                    mostrarMensaje(`La línea ${indice + 1} no tiene cuenta contable.`, "error");
+                    return;
+                }
+
+                if (!linea.fecha) {
+                    mostrarMensaje(`La línea ${indice + 1} no tiene fecha.`, "error");
+                    return;
+                }
+
+                if (!linea.concepto) {
+                    mostrarMensaje(`La línea ${indice + 1} no tiene concepto.`, "error");
+                    return;
+                }
+            }
+
+            btnConfirmar.disabled = true;
+            mostrarMensaje("Validando asiento...", "ok");
+
+            try {
+                const advertencias = await validarAsientoAntesDeConfirmar(lineas);
+                abrirPreconfirmAsiento(lineas, advertencias);
+                mostrarMensaje(
+                    advertencias.length
+                        ? "Revisa las advertencias antes de enviar."
+                        : "Revisa el asiento antes de enviar.",
+                    advertencias.length ? "aviso" : "ok"
+                );
+            } catch (error) {
+                mostrarMensaje(error.message, "error");
+            } finally {
+                actualizarTotales();
+            }
+        }
+
+        async function enviarAsientoConfirmado() {
+            const payload = payloadPreconfirmAsiento;
+
+            if (!payload) {
+                cerrarPreconfirmAsiento();
+                mostrarMensaje("No hay asiento preparado para enviar.", "error");
+                return;
+            }
+
+            btnEnviarPreconfirmAsiento.disabled = true;
+            btnEnviarPreconfirmAsiento.textContent = "Enviando...";
+            btnConfirmar.disabled = true;
+            mostrarMensaje("Enviando asiento al AS/400...", "ok");
+
+            try {
+                const response = await fetch("/api/asiento/confirmar", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.mensaje || "No se pudo confirmar el asiento");
+                }
+
+                cerrarPreconfirmAsiento();
+                const numero = data.numero_asiento ? ` Nº ${data.numero_asiento}.` : "";
+                let mensajeOk = `${data.mensaje || "Asiento creado correctamente"}.${numero}`;
+
+                if (data.ejemplo_guardado) {
+                    mensajeOk += " Ejemplo guardado para la IA.";
+                    actualizarInfoEjemplosIA(data.num_ejemplos_ia || ((numEjemplosIAInicial || 0) + 1));
+                } else if (data.aviso_ejemplo) {
+                    mensajeOk += ` ${data.aviso_ejemplo}`;
+                }
+
+                if (Array.isArray(data.advertencias) && data.advertencias.length) {
+                    mensajeOk += ` ${data.advertencias.length} advertencia(s) revisadas.`;
+                }
+
+                mostrarMensaje(mensajeOk, "ok");
+                lineasBody.innerHTML = "";
+                reiniciarAsientoIdempotencyKey();
+                anadirLinea();
+            } catch (error) {
+                mostrarMensaje(error.message, "error");
+            } finally {
+                btnEnviarPreconfirmAsiento.disabled = false;
+                btnEnviarPreconfirmAsiento.textContent = "Enviar al AS/400";
+                actualizarTotales();
+            }
+        }
+
+        if (empresaSelector) {
+            empresaSelector.addEventListener("change", async () => {
+                const response = await fetch("/api/empresa", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ empresa_id: empresaSelector.value }),
+                });
+
+                if (response.ok) {
+                    window.location.reload();
+                }
+            });
+        }
+
+        btnAnadirLinea.addEventListener("click", anadirLinea);
+
+        if (btnBorrarTodasLineas) {
+            btnBorrarTodasLineas.addEventListener("click", borrarTodasLineas);
+        }
+
+        btnConfirmar.addEventListener("click", confirmarAsiento);
+        btnCerrarPreconfirmAsiento.addEventListener("click", cerrarPreconfirmAsiento);
+        btnCancelarPreconfirmAsiento.addEventListener("click", cerrarPreconfirmAsiento);
+        btnEnviarPreconfirmAsiento.addEventListener("click", enviarAsientoConfirmado);
+
+        modalPreconfirmAsiento.addEventListener("click", event => {
+            if (event.target === modalPreconfirmAsiento) {
+                cerrarPreconfirmAsiento();
+            }
+        });
+
+        if (btnGuardarEjemplo) {
+            btnGuardarEjemplo.addEventListener("click", guardarEjemploAsiento);
+        }
+
+        actualizarInfoEjemplosIA(numEjemplosIAInicial);
+
+        if (fechaIA) {
+            fechaIA.value = fechaAsientoInput();
+        }
+
+        if (btnSugerirIA) {
+            btnSugerirIA.addEventListener("click", sugerirAsientoIA);
+        }
+
+        document.querySelectorAll(".btn-detener-ia").forEach((boton) => {
+            boton.addEventListener("click", detenerPeticionIA);
+        });
+
+        if (btnImportarCSV) {
+            btnImportarCSV.addEventListener("click", () => importarCSV("lineas"));
+        }
+
+        if (btnAnalizarCSV) {
+            btnAnalizarCSV.addEventListener("click", () => importarCSV("ia"));
+        }
+
+        if (csvDiagnostico) {
+            csvDiagnostico.addEventListener("click", event => {
+                const boton = event.target.closest("[data-cuenta-banco]");
+
+                if (!boton || !cuentaBancoCSV) {
+                    return;
+                }
+
+                cuentaBancoCSV.value = boton.dataset.cuentaBanco || "";
+                mostrarMensaje(
+                    `Cuenta banco ${cuentaBancoCSV.value} seleccionada. Vuelve a cargar el archivo para aplicarla.`,
+                    "ok"
+                );
+            });
+        }
+
+        if (archivoCSV && csvInfo) {
+            archivoCSV.addEventListener("change", () => {
+                const archivo = archivoCSV.files?.[0];
+                limpiarDiagnosticoCSV();
+
+                if (!archivo) {
+                    csvInfo.hidden = true;
+                    csvInfo.textContent = "";
+                    return;
+                }
+
+                csvInfo.textContent = `Archivo seleccionado: ${archivo.name}`;
+                csvInfo.hidden = false;
+            });
+        }
+
+        if (btnRecargarCuentas) {
+            btnRecargarCuentas.addEventListener("click", () => {
+                cargarCuentas(true);
+            });
+        }
+
+        document.addEventListener("keydown", event => {
+            if (event.key === "Escape" && modalPreconfirmAsiento.classList.contains("activo")) {
+                cerrarPreconfirmAsiento();
+            }
+        });
+
+        document.addEventListener("click", () => {
+            cerrarDropdownsCuenta();
+        });
+
+        anadirLinea();
+        cargarCuentas();
+    </script>
+
+</body>
+
+</html>

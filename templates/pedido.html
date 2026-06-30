@@ -448,6 +448,19 @@
             color: #92400e;
         }
 
+        .motivo-recomendacion {
+            display: block;
+            margin-top: .35rem;
+            color: #4b5563;
+            font-size: .78rem;
+            line-height: 1.35;
+        }
+
+        .pedido-motivo {
+            color: #374151 !important;
+            font-weight: 600;
+        }
+
         button {
             border: none;
             border-radius: 10px;
@@ -564,6 +577,140 @@
             color: #374151;
             font-size: .9rem;
             font-weight: 600;
+        }
+
+        .modal-preconfirm {
+            position: fixed;
+            inset: 0;
+            background: rgba(17, 24, 39, .5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            z-index: 60;
+        }
+
+        .modal-preconfirm.activo {
+            display: flex;
+        }
+
+        .modal-preconfirm-panel {
+            width: min(780px, 100%);
+            max-height: 88vh;
+            overflow: auto;
+            background: white;
+            border-radius: 16px;
+            padding: 1.25rem;
+            box-shadow: 0 24px 48px rgba(0, 0, 0, .2);
+        }
+
+        .modal-preconfirm-header,
+        .modal-preconfirm-acciones {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .modal-preconfirm-header h2 {
+            margin: 0 0 .25rem;
+            font-size: 1.15rem;
+        }
+
+        .modal-preconfirm-header p {
+            margin: 0;
+            color: #6b7280;
+            font-size: .9rem;
+        }
+
+        .preconfirm-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: .65rem;
+            margin: 1rem 0;
+        }
+
+        .preconfirm-dato {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: .7rem;
+            background: #f9fafb;
+        }
+
+        .preconfirm-dato span {
+            display: block;
+            color: #6b7280;
+            font-size: .76rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            margin-bottom: .2rem;
+        }
+
+        .preconfirm-lista {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        .preconfirm-linea {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: .75rem;
+            padding: .7rem .8rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .preconfirm-linea:last-child {
+            border-bottom: none;
+        }
+
+        .preconfirm-linea strong {
+            display: block;
+            font-size: .92rem;
+        }
+
+        .preconfirm-linea span {
+            color: #6b7280;
+            font-size: .84rem;
+        }
+
+        .preconfirm-importe {
+            text-align: right;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .preconfirm-alertas {
+            display: grid;
+            gap: .45rem;
+            margin-bottom: 1rem;
+        }
+
+        .preconfirm-alerta {
+            padding: .65rem .75rem;
+            border-radius: 10px;
+            background: #fef3c7;
+            color: #92400e;
+            font-size: .9rem;
+            font-weight: 700;
+        }
+
+        .modal-preconfirm-acciones {
+            justify-content: flex-end;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 1rem;
+        }
+
+        .btn-preconfirm-cancelar {
+            background: #e5e7eb;
+            color: #1f2937;
+        }
+
+        .btn-preconfirm-enviar {
+            background: #1e7883;
+            color: white;
         }
 
         .btn-confirmar {
@@ -777,6 +924,10 @@
         <div class="header-inner">
             <h1>Pedido rápido</h1>
             <div class="header-actions">
+                <a class="btn-logout" href="{{ url_for('index') }}" style="margin-right:.25rem;">Inicio</a>
+                <a class="btn-logout" href="{{ url_for('asiento') }}" style="margin-right:.25rem;">Asientos</a>
+                <a class="btn-logout" href="{{ url_for('historial') }}" style="margin-right:.25rem;">Historial</a>
+                <a class="btn-logout" href="{{ url_for('estado_as400') }}" style="margin-right:.25rem;">Estado AS/400</a>
                 {% if empresas|length > 1 %}
                 <label class="header-empresa" for="empresaSelector">
                     Empresa
@@ -863,6 +1014,21 @@
                         <input type="checkbox" id="filtroCantidadAlta">
                         Cantidad alta
                     </label>
+
+                    <label class="filtro-check">
+                        <input type="checkbox" id="filtroSoloRecomendados">
+                        Solo recomendados
+                    </label>
+
+                    <label class="filtro-check">
+                        <input type="checkbox" id="filtroRupturaInminente">
+                        Ruptura inminente
+                    </label>
+
+                    <label class="filtro-check">
+                        <input type="checkbox" id="filtroSinConsumoReciente">
+                        Sin consumo reciente
+                    </label>
                 </div>
 
 
@@ -915,8 +1081,26 @@
         </div>
     </div>
 
+    <div class="modal-preconfirm" id="modalPreconfirmPedido" hidden>
+        <div class="modal-preconfirm-panel" role="dialog" aria-modal="true" aria-labelledby="preconfirmPedidoTitulo">
+            <div class="modal-preconfirm-header">
+                <div>
+                    <h2 id="preconfirmPedidoTitulo">Revisar pedido</h2>
+                    <p id="preconfirmPedidoSubtitulo"></p>
+                </div>
+                <button type="button" class="btn-cerrar-modal" id="btnCerrarPreconfirmPedido">Cerrar</button>
+            </div>
+            <div id="preconfirmPedidoContenido"></div>
+            <div class="modal-preconfirm-acciones">
+                <button type="button" class="btn-preconfirm-cancelar" id="btnCancelarPreconfirmPedido">Volver</button>
+                <button type="button" class="btn-preconfirm-enviar" id="btnEnviarPreconfirmPedido">Enviar al AS/400</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const proveedores = {{ proveedores| tojson }};
+        const empresaActual = {{ empresa_actual|tojson }};
         const pedido = {};
 
         const articulosLista = document.getElementById("articulosLista");
@@ -938,12 +1122,36 @@
         const filtroDiasSinComprar = document.getElementById("filtroDiasSinComprar");
         const filtroSinStock = document.getElementById("filtroSinStock");
         const filtroCantidadAlta = document.getElementById("filtroCantidadAlta");
+        const filtroSoloRecomendados = document.getElementById("filtroSoloRecomendados");
+        const filtroRupturaInminente = document.getElementById("filtroRupturaInminente");
+        const filtroSinConsumoReciente = document.getElementById("filtroSinConsumoReciente");
         const coberturaDias = document.getElementById("coberturaDias");
         const fechaAnalisis = document.getElementById("fechaAnalisis");
         const empresaSelector = document.getElementById("empresaSelector");
 
         let proveedorSeleccionado = null;
         let cargandoArticulos = false;
+        let pedidoIdempotencyKey = null;
+
+        function generarIdempotencyKey() {
+            if (window.crypto && typeof window.crypto.randomUUID === "function") {
+                return window.crypto.randomUUID();
+            }
+
+            return `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+        }
+
+        function obtenerPedidoIdempotencyKey() {
+            if (!pedidoIdempotencyKey) {
+                pedidoIdempotencyKey = generarIdempotencyKey();
+            }
+
+            return pedidoIdempotencyKey;
+        }
+
+        function reiniciarPedidoIdempotencyKey() {
+            pedidoIdempotencyKey = null;
+        }
 
         function escapeHtml(texto) {
             return String(texto ?? "")
@@ -971,6 +1179,13 @@
         const modalStocksSubtitulo = document.getElementById("modalStocksSubtitulo");
         const modalStocksContenido = document.getElementById("modalStocksContenido");
         const btnCerrarModalStocks = document.getElementById("btnCerrarModalStocks");
+        const modalPreconfirmPedido = document.getElementById("modalPreconfirmPedido");
+        const preconfirmPedidoSubtitulo = document.getElementById("preconfirmPedidoSubtitulo");
+        const preconfirmPedidoContenido = document.getElementById("preconfirmPedidoContenido");
+        const btnCerrarPreconfirmPedido = document.getElementById("btnCerrarPreconfirmPedido");
+        const btnCancelarPreconfirmPedido = document.getElementById("btnCancelarPreconfirmPedido");
+        const btnEnviarPreconfirmPedido = document.getElementById("btnEnviarPreconfirmPedido");
+        let payloadPreconfirmPedido = null;
 
         function cerrarModalStocks() {
             modalStocks.classList.remove("activo");
@@ -983,6 +1198,119 @@
             modalStocksContenido.innerHTML = '<p style="color:#6b7280;">Cargando stocks...</p>';
             modalStocks.hidden = false;
             modalStocks.classList.add("activo");
+        }
+
+        function cerrarPreconfirmPedido() {
+            modalPreconfirmPedido.classList.remove("activo");
+            modalPreconfirmPedido.hidden = true;
+            payloadPreconfirmPedido = null;
+        }
+
+        function nombreEmpresaActual() {
+            if (empresaSelector) {
+                return empresaSelector.options[empresaSelector.selectedIndex]?.textContent.trim() || "Sin empresa";
+            }
+
+            return empresaActual?.nombre || empresaActual?.id || "Sin empresa";
+        }
+
+        function crearPayloadPedido(proveedor, items) {
+            return {
+                idempotency_key: obtenerPedidoIdempotencyKey(),
+                proveedor,
+                proveedor_nombre: proveedorSeleccionado?.nombre || "",
+                fecha: obtenerFechaAnalisisAs400(),
+                lineas: items.map(item => ({
+                    codigo_articulo: item.codigo,
+                    descripcion: item.descripcion,
+                    cantidad: item.cantidad,
+                    codigoUm: item.codigoUm,
+                    unidadMedida: item.unidadMedida,
+                    precio: item.precio
+                }))
+            };
+        }
+
+        function advertenciasPedido(items) {
+            const avisos = [];
+
+            if (!empresaActual?.id && !empresaSelector?.value) {
+                avisos.push("No hay empresa destino seleccionada.");
+            }
+
+            if (!proveedorSeleccionado?.nombre) {
+                avisos.push("El proveedor no tiene nombre asociado en la selección.");
+            }
+
+            if (!fechaAnalisis?.value) {
+                avisos.push("No hay fecha de análisis de consumos informada.");
+            }
+
+            items.forEach(item => {
+                const stockEfectivo = calcularStockEfectivo(item.stock, item.reservado, item.pendiente);
+                const necesidad = calcularNecesidad(stockEfectivo, item.consumoDiario, obtenerDiasCobertura());
+
+                if (Number(item.precio || 0) <= 0) {
+                    avisos.push(`${item.codigo}: precio 0 o no informado.`);
+                }
+
+                if (stockEfectivo < 0) {
+                    avisos.push(`${item.codigo}: stock efectivo negativo (${formatearStock(stockEfectivo)}).`);
+                }
+
+                if (item.cantidadUltimo > 0 && item.cantidad >= item.cantidadUltimo * 4) {
+                    avisos.push(`${item.codigo}: cantidad al menos 4 veces superior a la última compra.`);
+                }
+
+                if (item.consumoDiario > 0 && item.cantidad >= item.consumoDiario * 15) {
+                    avisos.push(`${item.codigo}: cantidad alta respecto al consumo diario.`);
+                }
+
+                if (necesidad > 0 && item.cantidad < Math.ceil(necesidad)) {
+                    avisos.push(`${item.codigo}: cantidad menor que la recomendada para la cobertura actual.`);
+                }
+            });
+
+            return avisos.slice(0, 8);
+        }
+
+        function abrirPreconfirmPedido(proveedor, items) {
+            const total = items.reduce((suma, item) => suma + Number(item.precio || 0) * Number(item.cantidad || 0), 0);
+            const avisos = advertenciasPedido(items);
+            payloadPreconfirmPedido = crearPayloadPedido(proveedor, items);
+            preconfirmPedidoSubtitulo.textContent = `${items.length} línea(s) · ${total.toFixed(2)} €`;
+
+            const alertasHtml = avisos.length
+                ? `<div class="preconfirm-alertas">${avisos.map(aviso => `<div class="preconfirm-alerta">${escapeHtml(aviso)}</div>`).join("")}</div>`
+                : "";
+
+            const lineasHtml = items.map(item => {
+                const importe = Number(item.precio || 0) * Number(item.cantidad || 0);
+
+                return `
+                    <div class="preconfirm-linea">
+                        <div>
+                            <strong>${escapeHtml(item.codigo)} · ${escapeHtml(item.descripcion)}</strong>
+                            <span>${item.cantidad} ${escapeHtml(item.unidadMedida || "")} · Stock ${formatearStock(item.stock)} · Reservado ${formatearStock(item.reservado)} · Pendiente ${formatearStock(item.pendiente)}</span>
+                        </div>
+                        <div class="preconfirm-importe">${importe.toFixed(2)} €</div>
+                    </div>
+                `;
+            }).join("");
+
+            preconfirmPedidoContenido.innerHTML = `
+                <div class="preconfirm-grid">
+                    <div class="preconfirm-dato"><span>Empresa destino</span>${escapeHtml(nombreEmpresaActual())}</div>
+                    <div class="preconfirm-dato"><span>Proveedor</span>${escapeHtml(proveedor)} ${escapeHtml(proveedorSeleccionado?.nombre || "")}</div>
+                    <div class="preconfirm-dato"><span>Fecha análisis</span>${escapeHtml(fechaAnalisis?.value || "-")}</div>
+                    <div class="preconfirm-dato"><span>Cobertura</span>${obtenerDiasCobertura()} días</div>
+                    <div class="preconfirm-dato"><span>Total</span>${total.toFixed(2)} €</div>
+                </div>
+                ${alertasHtml}
+                <div class="preconfirm-lista">${lineasHtml}</div>
+            `;
+            modalPreconfirmPedido.hidden = false;
+            modalPreconfirmPedido.classList.add("activo");
         }
 
         function etiquetaConversion(abr1, abr2) {
@@ -1100,6 +1428,7 @@
 
         function limpiarPedido() {
             Object.keys(pedido).forEach(codigo => delete pedido[codigo]);
+            reiniciarPedidoIdempotencyKey();
             renderPedido();
         }
 
@@ -1109,6 +1438,9 @@
             filtroDiasSinComprar.disabled = !activos;
             filtroSinStock.disabled = !activos;
             filtroCantidadAlta.disabled = !activos;
+            filtroSoloRecomendados.disabled = !activos;
+            filtroRupturaInminente.disabled = !activos;
+            filtroSinConsumoReciente.disabled = !activos;
             panelArticulos.classList.toggle("bloqueado", !activos);
         }
 
@@ -1161,7 +1493,7 @@
                     data-familia="${escapeHtml(familia)}"
                     data-precio="${precio}"
                     data-stock="${stock}"
-                    data-stockotros="${stockOtros}"
+                    data-stock-otros="${stockOtros}"
                     data-reservado="${reservado}"
                     data-pendiente="${pendiente}"
                     data-consumo-diario="${consumoDiario}"
@@ -1234,6 +1566,7 @@
 
                             <div class="dato-linea">
                                 <span class="necesidad-mensual-texto"></span>
+                                <span class="motivo-recomendacion"></span>
                                 ${precioHtml}
                             </div>
                         </div>
@@ -1508,6 +1841,49 @@
             return Number(stock || 0) - Number(reservado || 0) + Number(pendiente || 0);
         }
 
+        function formatearNumeroRecomendacion(valor, decimales = 0) {
+            const numero = Number(valor || 0);
+
+            if (!Number.isFinite(numero)) {
+                return "0";
+            }
+
+            return numero.toLocaleString("es-ES", {
+                minimumFractionDigits: decimales,
+                maximumFractionDigits: decimales,
+            });
+        }
+
+        function calcularMetricasRecomendacion(stock, reservado, pendiente, consumoDiario, diasCobertura = null) {
+            const stockEfectivo = calcularStockEfectivo(stock, reservado, pendiente);
+            const consumo = Math.round(Number(consumoDiario || 0));
+            const dias = Number(diasCobertura || obtenerDiasCobertura());
+            const objetivo = consumo * dias;
+            const necesidad = objetivo - stockEfectivo;
+            const sugerida = necesidad > 0 ? Math.ceil(necesidad) : 0;
+            const coberturaActual = consumo > 0 ? stockEfectivo / consumo : null;
+
+            return {
+                stockEfectivo,
+                consumoDiario: consumo,
+                diasCobertura: dias,
+                objetivo,
+                necesidad,
+                sugerida,
+                coberturaActual,
+            };
+        }
+
+        function metricasArticulo(item) {
+            return calcularMetricasRecomendacion(
+                item.dataset.stock,
+                item.dataset.reservado,
+                item.dataset.pendiente,
+                item.dataset.consumoDiario,
+                obtenerDiasCobertura()
+            );
+        }
+
         function calcularNecesidad(stockEfectivo, consumoDiario, diasCobertura = 30) {
             stockEfectivo = Number(stockEfectivo || 0);
             consumoDiario = Math.round(Number(consumoDiario || 0));
@@ -1528,13 +1904,67 @@
         }
 
         function calcularCantidadSugerida(stock, reservado, pendiente, consumoDiario) {
-            const necesidad = calcularNecesidad(
-                calcularStockEfectivo(stock, reservado, pendiente),
+            const necesidad = calcularMetricasRecomendacion(
+                stock,
+                reservado,
+                pendiente,
                 consumoDiario,
                 obtenerDiasCobertura()
-            );
+            ).necesidad;
 
             return necesidad > 0 ? Math.ceil(necesidad) : 1;
+        }
+
+        function textoCoberturaActual(metricas) {
+            if (metricas.coberturaActual === null) {
+                return metricas.stockEfectivo > 0 ? "sin consumo medio" : "sin cobertura";
+            }
+
+            if (metricas.coberturaActual < 0) {
+                return "0 días";
+            }
+
+            if (metricas.coberturaActual < 10) {
+                return `${formatearNumeroRecomendacion(metricas.coberturaActual, 1)} días`;
+            }
+
+            return `${formatearNumeroRecomendacion(metricas.coberturaActual, 0)} días`;
+        }
+
+        function describirRecomendacion(metricas, unidadMedida = "") {
+            const unidad = unidadMedida ? ` ${unidadMedida}` : "";
+            const consumo = `${formatearNumeroRecomendacion(metricas.consumoDiario)}${unidad}/día`;
+            const stock = `${formatearNumeroRecomendacion(metricas.stockEfectivo)}${unidad}`;
+            const cobertura = textoCoberturaActual(metricas);
+
+            if (metricas.sugerida > 0) {
+                return `Pide ${formatearNumeroRecomendacion(metricas.sugerida)}${unidad} porque consumo diario ${consumo}, stock efectivo ${stock}, cobertura actual ${cobertura} y objetivo ${metricas.diasCobertura} días.`;
+            }
+
+            return `No pide porque stock efectivo ${stock} cubre ${cobertura} frente al objetivo de ${metricas.diasCobertura} días.`;
+        }
+
+        function esArticuloRecomendado(item) {
+            return metricasArticulo(item).sugerida > 0;
+        }
+
+        function esRupturaInminente(item) {
+            const metricas = metricasArticulo(item);
+
+            if (metricas.stockEfectivo <= 0) {
+                return true;
+            }
+
+            return metricas.consumoDiario > 0
+                && metricas.coberturaActual !== null
+                && metricas.coberturaActual <= 7;
+        }
+
+        function esSinConsumoReciente(item) {
+            const consumoDiario = Math.round(Number(item.dataset.consumoDiario || 0));
+            const diasDesdeConsumo = calcularDiasDesdeFecha(item.dataset.fechaUltimoConsumo);
+
+            return consumoDiario <= 0 || diasDesdeConsumo === null || diasDesdeConsumo > 90;
         }
 
         function recalcularDatosPorCobertura() {
@@ -1547,6 +1977,7 @@
                 );
             });
 
+            reiniciarPedidoIdempotencyKey();
             inicializarNecesidadMensual();
             renderPedido();
         }
@@ -1597,8 +2028,10 @@
             const articulos = document.querySelectorAll(".articulo-item");
 
             articulos.forEach(item => {
-                const necesidadMensual = calcularNecesidadArticulo(item);
+                const metricas = metricasArticulo(item);
+                const necesidadMensual = metricas.necesidad;
                 const texto = item.querySelector(".necesidad-mensual-texto");
+                const motivo = item.querySelector(".motivo-recomendacion");
 
                 if (!texto) {
                     return;
@@ -1607,7 +2040,7 @@
                 texto.classList.remove("ok", "falta", "alta");
 
                 if (necesidadMensual > 0) {
-                    texto.textContent = `Pedir: ${Math.ceil(necesidadMensual)}`;
+                    texto.textContent = `Pedir: ${metricas.sugerida}`;
 
                     if (esCantidadAPedirAlta(item)) {
                         texto.classList.add("alta");
@@ -1620,6 +2053,10 @@
                 }
 
                 item.dataset.necesidadMensual = necesidadMensual;
+
+                if (motivo) {
+                    motivo.textContent = describirRecomendacion(metricas, item.dataset.unidadMedida || "");
+                }
             });
         }
 
@@ -1674,6 +2111,7 @@
 
             pedido[codigo].cantidad = cantidad;
             input.value = cantidad;
+            reiniciarPedidoIdempotencyKey();
             recalcularTotal();
         }
         function actualizarListaArticulos() {
@@ -1699,6 +2137,9 @@
                 const cumpleNoComprados = cumpleFiltroNoComprados(item);
                 const cumpleSinStock = !filtroSinStock.checked || esSinStock(item);
                 const cumpleCantidadAlta = !filtroCantidadAlta.checked || esCantidadAPedirAlta(item);
+                const cumpleSoloRecomendados = !filtroSoloRecomendados.checked || esArticuloRecomendado(item);
+                const cumpleRupturaInminente = !filtroRupturaInminente.checked || esRupturaInminente(item);
+                const cumpleSinConsumoReciente = !filtroSinConsumoReciente.checked || esSinConsumoReciente(item);
 
                 item.style.display =
                     !estaEnPedido &&
@@ -1706,7 +2147,10 @@
                         coincideFamilia &&
                         cumpleNoComprados &&
                         cumpleSinStock &&
-                        cumpleCantidadAlta
+                        cumpleCantidadAlta &&
+                        cumpleSoloRecomendados &&
+                        cumpleRupturaInminente &&
+                        cumpleSinConsumoReciente
                         ? "grid"
                         : "none";
             });
@@ -1724,14 +2168,17 @@
                 items.forEach(item => {
                     const div = document.createElement("div");
                     div.className = "pedido-item";
-                    const necesidad = calcularNecesidad(
-                        calcularStockEfectivo(item.stock, item.reservado, item.pendiente),
+                    const metricas = calcularMetricasRecomendacion(
+                        item.stock,
+                        item.reservado,
+                        item.pendiente,
                         item.consumoDiario,
                         obtenerDiasCobertura()
                     );
-                    const textoNecesidad = necesidad > 0
-                        ? `Recomendado pedir: ${Math.ceil(necesidad)} ${item.unidadMedida}`
+                    const textoNecesidad = metricas.sugerida > 0
+                        ? `Recomendado pedir: ${metricas.sugerida} ${item.unidadMedida}`
                         : "Cobertura suficiente";
+                    const textoMotivo = describirRecomendacion(metricas, item.unidadMedida);
 
                     div.innerHTML = `
                         <div class="pedido-item-header">
@@ -1744,6 +2191,7 @@
                                 <p>Fecha última compra: ${formatearFechaAS400(item.fechaUltimo)} ${textoDiasDesdeFecha(item.fechaUltimo)}</p>
                                 <p>Fecha último consumo: ${formatearFechaAS400(item.fechaUltimoConsumo)} ${textoDiasDesdeFecha(item.fechaUltimoConsumo)}</p>
                                 <p>${textoNecesidad}</p>
+                                <p class="pedido-motivo">${escapeHtml(textoMotivo)}</p>
                             </div>
 
                             <button type="button" class="btn-danger" data-accion="eliminar" data-codigo="${item.codigo}">
@@ -1834,6 +2282,7 @@
             };
 
             item.style.display = "none";
+            reiniciarPedidoIdempotencyKey();
 
             renderPedido();
         });
@@ -1868,6 +2317,7 @@
                 delete pedido[codigo];
             }
 
+            reiniciarPedidoIdempotencyKey();
             renderPedido();
         });
 
@@ -1893,6 +2343,9 @@
         filtroDiasSinComprar.addEventListener("input", actualizarListaArticulos);
         filtroSinStock.addEventListener("change", actualizarListaArticulos);
         filtroCantidadAlta.addEventListener("change", actualizarListaArticulos);
+        filtroSoloRecomendados.addEventListener("change", actualizarListaArticulos);
+        filtroRupturaInminente.addEventListener("change", actualizarListaArticulos);
+        filtroSinConsumoReciente.addEventListener("change", actualizarListaArticulos);
 
         coberturaDias.addEventListener("input", recalcularDatosPorCobertura);
         coberturaDias.addEventListener("change", recalcularDatosPorCobertura);
@@ -1921,6 +2374,10 @@
         document.addEventListener("keydown", event => {
             if (event.key === "Escape" && modalStocks.classList.contains("activo")) {
                 cerrarModalStocks();
+            }
+
+            if (event.key === "Escape" && modalPreconfirmPedido.classList.contains("activo")) {
+                cerrarPreconfirmPedido();
             }
         });
 
@@ -2005,29 +2462,17 @@
             }
         });
 
-        btnConfirmar.addEventListener("click", async () => {
-            const proveedor = proveedorCodigo.value.trim();
-            const items = Object.values(pedido);
+        async function enviarPedidoConfirmado() {
+            const payload = payloadPreconfirmPedido;
 
-            if (!proveedor) {
-                mostrarMensaje("Selecciona un proveedor antes de confirmar.", "error");
+            if (!payload) {
+                cerrarPreconfirmPedido();
+                mostrarMensaje("No hay pedido preparado para enviar.", "error");
                 return;
             }
 
-            if (items.length === 0) {
-                mostrarMensaje("El pedido está vacío.", "error");
-                return;
-            }
-
-            const payload = {
-                proveedor,
-                lineas: items.map(item => ({
-                    codigo_articulo: item.codigo,
-                    cantidad: item.cantidad,
-                    codigoUm: item.codigoUm
-                }))
-            };
-
+            btnEnviarPreconfirmPedido.disabled = true;
+            btnEnviarPreconfirmPedido.textContent = "Enviando...";
             btnConfirmar.disabled = true;
             btnConfirmar.textContent = "Enviando...";
 
@@ -2046,7 +2491,9 @@
                     throw new Error(data.mensaje || "No se pudo confirmar el pedido");
                 }
 
+                cerrarPreconfirmPedido();
                 Object.keys(pedido).forEach(codigo => delete pedido[codigo]);
+                reiniciarPedidoIdempotencyKey();
                 renderPedido();
 
                 mostrarMensaje(
@@ -2060,8 +2507,37 @@
                 mostrarMensaje(error.message, "error");
 
             } finally {
+                btnEnviarPreconfirmPedido.disabled = false;
+                btnEnviarPreconfirmPedido.textContent = "Enviar al AS/400";
                 btnConfirmar.disabled = false;
                 btnConfirmar.textContent = "Confirmar pedido";
+            }
+        }
+
+        btnConfirmar.addEventListener("click", () => {
+            const proveedor = proveedorCodigo.value.trim();
+            const items = Object.values(pedido);
+
+            if (!proveedor) {
+                mostrarMensaje("Selecciona un proveedor antes de confirmar.", "error");
+                return;
+            }
+
+            if (items.length === 0) {
+                mostrarMensaje("El pedido está vacío.", "error");
+                return;
+            }
+
+            abrirPreconfirmPedido(proveedor, items);
+        });
+
+        btnCerrarPreconfirmPedido.addEventListener("click", cerrarPreconfirmPedido);
+        btnCancelarPreconfirmPedido.addEventListener("click", cerrarPreconfirmPedido);
+        btnEnviarPreconfirmPedido.addEventListener("click", enviarPedidoConfirmado);
+
+        modalPreconfirmPedido.addEventListener("click", event => {
+            if (event.target === modalPreconfirmPedido) {
+                cerrarPreconfirmPedido();
             }
         });
 
