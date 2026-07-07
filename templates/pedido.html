@@ -123,6 +123,28 @@
             box-shadow: 0 0 0 3px rgba(255, 255, 255, .25);
         }
 
+        .header-fecha-analisis input:disabled {
+            opacity: .45;
+            cursor: not-allowed;
+        }
+
+        .todos-articulos-label {
+            display: flex;
+            align-items: center;
+            gap: .35rem;
+            font-size: .88rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .todos-articulos-label input[type="checkbox"] {
+            width: 15px;
+            height: 15px;
+            cursor: pointer;
+            accent-color: white;
+        }
+
         .header-actions {
             display: flex;
             align-items: center;
@@ -181,6 +203,28 @@
             flex: 1;
             min-width: 280px;
             max-width: 520px;
+        }
+
+        .btn-todos-articulos {
+            align-self: flex-end;
+            padding: .65rem 1rem;
+            border: none;
+            border-radius: 10px;
+            background: #e5e7eb;
+            color: #374151;
+            font-size: .92rem;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .btn-todos-articulos:hover {
+            background: #d1d5db;
+        }
+
+        .btn-todos-articulos.activo {
+            background: #1e7883;
+            color: white;
         }
 
         .proveedor-combobox {
@@ -292,6 +336,13 @@
         .panel-header h2 {
             margin: 0;
             font-size: 1.2rem;
+        }
+
+        .articulos-contador {
+            font-size: .8rem;
+            font-weight: 600;
+            color: #6b7280;
+            margin-left: .5rem;
         }
 
         .filtros-articulos {
@@ -945,6 +996,9 @@
                 <label class="header-fecha-analisis" for="fechaAnalisis">
                     Fecha análisis Consumos
                     <input type="date" id="fechaAnalisis" title="Fecha de análisis enviada al AS/400">
+                    <label class="todos-articulos-label" for="todosArticulos" title="Ignorar fecha y traer todos los artículos del proveedor">
+                        <input type="checkbox" id="todosArticulos"> Todos
+                    </label>
                 </label>
                 <label class="header-cobertura" for="coberturaDias">
                     Cobertura (días)
@@ -981,6 +1035,10 @@
             </div>
         </div>
 
+        <button type="button" class="btn-todos-articulos" id="btnTodosArticulos">
+            Ver todos los artículos
+        </button>
+
         <div class="proveedor-seleccionado vacio" id="proveedorSeleccionadoInfo">
             Selecciona un proveedor para cargar los artículos
         </div>
@@ -990,7 +1048,7 @@
 
         <section class="panel panel-articulos bloqueado" id="panelArticulos">
             <div class="panel-header">
-                <h2>Artículos disponibles</h2>
+                <h2>Artículos disponibles <span id="articulosContador" class="articulos-contador"></span></h2>
 
                 <div class="filtros-articulos">
                     <input type="search" id="buscador" class="buscador" placeholder="Buscar artículo o código..."
@@ -1132,6 +1190,8 @@
         let proveedorSeleccionado = null;
         let cargandoArticulos = false;
         let pedidoIdempotencyKey = null;
+        let articulosData = [];
+        let articulosAbortController = null;
 
         function generarIdempotencyKey() {
             if (window.crypto && typeof window.crypto.randomUUID === "function") {
@@ -1173,6 +1233,18 @@
             }
 
             return numero.toFixed(3).replace(/\.?0+$/, "");
+        }
+
+        function valorArticulo(articulo, claves, fallback = "") {
+            for (const clave of claves) {
+                const valor = articulo?.[clave];
+
+                if (valor !== undefined && valor !== null && String(valor).trim() !== "") {
+                    return valor;
+                }
+            }
+
+            return fallback;
         }
 
         const modalStocks = document.getElementById("modalStocks");
@@ -1242,7 +1314,7 @@
                 avisos.push("El proveedor no tiene nombre asociado en la selección.");
             }
 
-            if (!fechaAnalisis?.value) {
+            if (!fechaAnalisis?.value && !todosArticulosActivo()) {
                 avisos.push("No hay fecha de análisis de consumos informada.");
             }
 
@@ -1430,6 +1502,7 @@
             Object.keys(pedido).forEach(codigo => delete pedido[codigo]);
             reiniciarPedidoIdempotencyKey();
             renderPedido();
+            actualizarListaArticulos();
         }
 
         function setFiltrosArticulosActivos(activos) {
@@ -1445,12 +1518,15 @@
         }
 
         function mostrarEstadoArticulos(texto) {
+            articulosData = [];
             articulosLista.innerHTML = "";
             const div = document.createElement("div");
             div.className = "vacio";
             div.id = "articulosEstadoVacio";
             div.textContent = texto;
             articulosLista.appendChild(div);
+            const contador = document.getElementById("articulosContador");
+            if (contador) contador.textContent = "";
             setFiltrosArticulosActivos(false);
         }
 
@@ -1472,11 +1548,15 @@
         function crearArticuloHtml(articulo) {
             const familia = articulo.familia || "Sin familia";
             const precio = Number(articulo.precio || 0);
-            const stock = articulo.stock ?? 0;
-            const stockOtros = articulo.stockOtros ?? 0;
-            const reservado = articulo.reservado ?? 0;
-            const pendiente = articulo.pendiente ?? 0;
-            const consumoDiario = articulo.Consumo_Diario ?? 0;
+            const stock = valorArticulo(articulo, ["stock"], 0);
+            const stockOtros = valorArticulo(articulo, ["stockOtros", "stock_otros", "stockotros"], 0);
+            const reservado = valorArticulo(articulo, ["reservado"], 0);
+            const pendiente = valorArticulo(articulo, ["pendiente"], 0);
+            const consumoDiario = valorArticulo(
+                articulo,
+                ["Consumo_Diario", "consumo_diario", "consumoDiario"],
+                0
+            );
             const cantidadUltimo = articulo.cantidad_ultimo ?? 0;
             const fechaUltimo = articulo.fecha_ultimo || "";
             const fechaUltimoConsumo = articulo.fecha_ultimo_consumo || "";
@@ -1590,21 +1670,25 @@
                 return;
             }
 
-            articulosLista.innerHTML = articulos.map(crearArticuloHtml).join("");
+            articulosData = articulos;
             actualizarFiltroFamilias(articulos);
             setFiltrosArticulosActivos(true);
-            inicializarFechasUltimoPedido();
-            inicializarNecesidadMensual();
             actualizarListaArticulos();
         }
 
         async function cargarArticulos(codigoProveedor) {
             const proveedor = String(codigoProveedor ?? "").trim();
 
-            if (!proveedor || cargandoArticulos) {
+            if (!proveedor) {
                 return;
             }
 
+            if (articulosAbortController) {
+                articulosAbortController.abort();
+            }
+
+            const controller = new AbortController();
+            articulosAbortController = controller;
             cargandoArticulos = true;
             mostrarEstadoArticulos("Cargando artículos...");
 
@@ -1613,7 +1697,10 @@
                     proveedor,
                     fechaAnalisis: obtenerFechaAnalisisAs400()
                 });
-                const response = await fetch(`/api/articulos?${params.toString()}`);
+                const response = await fetch(
+                    `/api/articulos?${params.toString()}`,
+                    { signal: controller.signal }
+                );
                 const data = await leerRespuestaApi(response);
 
                 if (!response.ok || data.success === false) {
@@ -1622,10 +1709,17 @@
 
                 renderArticulos(data.articulos || []);
             } catch (error) {
+                if (error.name === "AbortError") {
+                    return;
+                }
+
                 mostrarEstadoArticulos(error.message);
                 mostrarMensaje(error.message, "error");
             } finally {
-                cargandoArticulos = false;
+                if (articulosAbortController === controller) {
+                    cargandoArticulos = false;
+                    articulosAbortController = null;
+                }
             }
         }
 
@@ -1821,6 +1915,10 @@
             return formatearFechaInput(fecha);
         }
 
+        function todosArticulosActivo() {
+            return document.getElementById("todosArticulos")?.checked;
+        }
+
         function inicializarFechaAnalisis() {
             if (!fechaAnalisis || fechaAnalisis.value) {
                 return;
@@ -1830,6 +1928,10 @@
         }
 
         function obtenerFechaAnalisisAs400() {
+            if (todosArticulosActivo()) {
+                return "19000101";
+            }
+
             if (!fechaAnalisis || !fechaAnalisis.value) {
                 return obtenerFechaAnalisisPorDefecto().replace(/-/g, "");
             }
@@ -1875,11 +1977,9 @@
         }
 
         function metricasArticulo(item) {
+            const d = item.dataset || item;
             return calcularMetricasRecomendacion(
-                item.dataset.stock,
-                item.dataset.reservado,
-                item.dataset.pendiente,
-                item.dataset.consumoDiario,
+                d.stock, d.reservado, d.pendiente, d.consumoDiario,
                 obtenerDiasCobertura()
             );
         }
@@ -1893,13 +1993,9 @@
         }
 
         function calcularNecesidadArticulo(item) {
-            const stockEfectivo = calcularStockEfectivo(
-                item.dataset.stock,
-                item.dataset.reservado,
-                item.dataset.pendiente
-            );
-            const consumoDiario = Math.round(Number(item.dataset.consumoDiario || 0));
-
+            const d = item.dataset || item;
+            const stockEfectivo = calcularStockEfectivo(d.stock, d.reservado, d.pendiente);
+            const consumoDiario = Math.round(Number(d.consumoDiario || 0));
             return calcularNecesidad(stockEfectivo, consumoDiario, obtenerDiasCobertura());
         }
 
@@ -1961,9 +2057,9 @@
         }
 
         function esSinConsumoReciente(item) {
-            const consumoDiario = Math.round(Number(item.dataset.consumoDiario || 0));
-            const diasDesdeConsumo = calcularDiasDesdeFecha(item.dataset.fechaUltimoConsumo);
-
+            const d = item.dataset || item;
+            const consumoDiario = Math.round(Number(d.consumoDiario || 0));
+            const diasDesdeConsumo = calcularDiasDesdeFecha(d.fechaUltimoConsumo);
             return consumoDiario <= 0 || diasDesdeConsumo === null || diasDesdeConsumo > 90;
         }
 
@@ -1983,44 +2079,27 @@
         }
 
         function esSinStock(item) {
-            const stockEfectivo = calcularStockEfectivo(
-                item.dataset.stock,
-                item.dataset.reservado,
-                item.dataset.pendiente
-            );
-
-            return stockEfectivo <= 0;
+            const d = item.dataset || item;
+            return calcularStockEfectivo(d.stock, d.reservado, d.pendiente) <= 0;
         }
 
         function cumpleFiltroNoComprados(item) {
             const diasFiltro = Number(filtroDiasSinComprar.value || 0);
-
-            if (!diasFiltro || diasFiltro <= 0) {
-                return true;
-            }
-
-            const diasDesdeUltimo = calcularDiasDesdeFecha(item.dataset.fechaUltimo);
-
-            if (diasDesdeUltimo === null) {
-                return true;
-            }
-
+            if (!diasFiltro || diasFiltro <= 0) return true;
+            const d = item.dataset || item;
+            const diasDesdeUltimo = calcularDiasDesdeFecha(d.fechaUltimo);
+            if (diasDesdeUltimo === null) return true;
             return diasDesdeUltimo >= diasFiltro;
         }
 
         function esCantidadAPedirAlta(item) {
-            const consumoDiario = Math.round(Number(item.dataset.consumoDiario || 0));
-            const cantidadUltimo = Number(item.dataset.cantidadUltimo || 0);
-
+            const d = item.dataset || item;
+            const consumoDiario = Math.round(Number(d.consumoDiario || 0));
+            const cantidadUltimo = Number(d.cantidadUltimo || 0);
             const cantidadAPedir = calcularNecesidadArticulo(item);
-
-            if (cantidadAPedir <= 0) {
-                return false;
-            }
-
+            if (cantidadAPedir <= 0) return false;
             const superaCantidadUltimo = cantidadUltimo > 0 && cantidadAPedir >= cantidadUltimo * 4;
             const superaConsumoDiario = consumoDiario > 0 && cantidadAPedir >= consumoDiario * 15;
-
             return superaCantidadUltimo || superaConsumoDiario;
         }
 
@@ -2114,46 +2193,61 @@
             reiniciarPedidoIdempotencyKey();
             recalcularTotal();
         }
+        function articuloComoItem(a) {
+            return {
+                consumoDiario: valorArticulo(a, ["Consumo_Diario", "consumo_diario", "consumoDiario"], 0),
+                fechaUltimoConsumo: valorArticulo(a, ["fecha_ultimo_consumo", "fechaUltimoConsumo"], ""),
+                stock: valorArticulo(a, ["stock"], 0),
+                reservado: valorArticulo(a, ["reservado"], 0),
+                pendiente: valorArticulo(a, ["pendiente"], 0),
+                fechaUltimo: valorArticulo(a, ["fecha_ultimo", "fechaUltimo"], ""),
+                cantidadUltimo: valorArticulo(a, ["cantidad_ultimo", "cantidadUltimo"], 0),
+            };
+        }
+
         function actualizarListaArticulos() {
-            const articulos = document.querySelectorAll(".articulo-item");
             const texto = buscador.value.toLowerCase().trim();
             const familiaSeleccionada = filtroFamilia.value.toLowerCase().trim();
 
-            articulos.forEach(item => {
-                const codigo = item.dataset.codigo.toLowerCase();
-                const descripcion = item.dataset.descripcion.toLowerCase();
-                const familia = (item.dataset.familia || "").toLowerCase().trim();
+            const filtrados = articulosData.filter(a => {
+                if (pedido[a.codigo]) return false;
 
-                const estaEnPedido = Boolean(pedido[item.dataset.codigo]);
+                if (texto) {
+                    const codigo = (a.codigo || "").toLowerCase();
+                    const descripcion = (a.descripcion || "").toLowerCase();
+                    if (!codigo.includes(texto) && !descripcion.includes(texto)) return false;
+                }
 
-                const coincideBusqueda =
-                    codigo.includes(texto) ||
-                    descripcion.includes(texto);
+                if (familiaSeleccionada) {
+                    const familia = (a.familia || "Sin familia").toLowerCase().trim();
+                    if (familia !== familiaSeleccionada) return false;
+                }
 
-                const coincideFamilia =
-                    !familiaSeleccionada ||
-                    familia === familiaSeleccionada;
+                const item = articuloComoItem(a);
+                if (!cumpleFiltroNoComprados(item)) return false;
+                if (filtroSinStock.checked && !esSinStock(item)) return false;
+                if (filtroCantidadAlta.checked && !esCantidadAPedirAlta(item)) return false;
+                if (filtroSoloRecomendados.checked && !esArticuloRecomendado(item)) return false;
+                if (filtroRupturaInminente.checked && !esRupturaInminente(item)) return false;
+                if (filtroSinConsumoReciente.checked && !esSinConsumoReciente(item)) return false;
 
-                const cumpleNoComprados = cumpleFiltroNoComprados(item);
-                const cumpleSinStock = !filtroSinStock.checked || esSinStock(item);
-                const cumpleCantidadAlta = !filtroCantidadAlta.checked || esCantidadAPedirAlta(item);
-                const cumpleSoloRecomendados = !filtroSoloRecomendados.checked || esArticuloRecomendado(item);
-                const cumpleRupturaInminente = !filtroRupturaInminente.checked || esRupturaInminente(item);
-                const cumpleSinConsumoReciente = !filtroSinConsumoReciente.checked || esSinConsumoReciente(item);
-
-                item.style.display =
-                    !estaEnPedido &&
-                        coincideBusqueda &&
-                        coincideFamilia &&
-                        cumpleNoComprados &&
-                        cumpleSinStock &&
-                        cumpleCantidadAlta &&
-                        cumpleSoloRecomendados &&
-                        cumpleRupturaInminente &&
-                        cumpleSinConsumoReciente
-                        ? "grid"
-                        : "none";
+                return true;
             });
+
+            const total = filtrados.length;
+            articulosLista.innerHTML = filtrados.map(crearArticuloHtml).join("");
+
+            const contador = document.getElementById("articulosContador");
+            if (contador) {
+                if (total === 0) {
+                    contador.textContent = "(sin resultados)";
+                } else {
+                    contador.textContent = `(${total})`;
+                }
+            }
+
+            inicializarFechasUltimoPedido();
+            inicializarNecesidadMensual();
         }
 
         function renderPedido() {
@@ -2281,10 +2375,9 @@
                 codigoUm
             };
 
-            item.style.display = "none";
             reiniciarPedidoIdempotencyKey();
-
             renderPedido();
+            actualizarListaArticulos();
         });
 
         pedidoLista.addEventListener("click", event => {
@@ -2319,6 +2412,9 @@
 
             reiniciarPedidoIdempotencyKey();
             renderPedido();
+            if (accion === "eliminar" || (accion === "restar" && !pedido[codigo])) {
+                actualizarListaArticulos();
+            }
         });
 
         pedidoLista.addEventListener("change", event => {
@@ -2360,6 +2456,47 @@
                     limpiarPedido();
                     cargarArticulos(proveedor);
                 }
+            });
+        }
+
+        const todosArticulosCheck = document.getElementById("todosArticulos");
+        if (todosArticulosCheck) {
+            todosArticulosCheck.addEventListener("change", () => {
+                if (fechaAnalisis) {
+                    fechaAnalisis.disabled = todosArticulosCheck.checked;
+                }
+
+                const proveedor = proveedorCodigo.value.trim();
+
+                if (proveedor) {
+                    limpiarPedido();
+                    cargarArticulos(proveedor);
+                }
+            });
+        }
+
+        const btnTodosArticulos = document.getElementById("btnTodosArticulos");
+        if (btnTodosArticulos) {
+            btnTodosArticulos.addEventListener("click", () => {
+                const yaActivo = btnTodosArticulos.classList.contains("activo");
+
+                if (yaActivo) {
+                    btnTodosArticulos.classList.remove("activo");
+                    btnTodosArticulos.textContent = "Ver todos los artículos";
+                    limpiarPedido();
+                    const proveedor = proveedorCodigo.value.trim();
+                    if (proveedor) {
+                        cargarArticulos(proveedor);
+                    } else {
+                        mostrarEstadoArticulos("Selecciona un proveedor para ver los artículos.");
+                    }
+                    return;
+                }
+
+                btnTodosArticulos.classList.add("activo");
+                btnTodosArticulos.textContent = "Volver a filtrar por proveedor";
+                limpiarPedido();
+                cargarArticulos("0");
             });
         }
 

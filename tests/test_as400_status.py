@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch
 
 import as400_api
+from empresas_store import DEFAULT_ENDPOINTS
 
 
 class FakeResponse:
@@ -57,6 +58,47 @@ class AS400StatusTests(unittest.TestCase):
         self.assertEqual(estado["servicios"]["pedidos"]["estado"], "error")
         self.assertTrue(estado["errores_recientes"])
         self.assertIn("Fallo AS400", estado["errores_recientes"][0]["error"])
+
+    def test_crear_asiento_usa_servicio_pedidos(self):
+        respuesta = FakeResponse(
+            data={
+                "salida": {
+                    "success": "1",
+                    "numero_asiento": 42,
+                    "mensaje": "OK",
+                }
+            }
+        )
+        empresa = dict(self.empresa)
+        empresa["endpoints"] = dict(DEFAULT_ENDPOINTS)
+
+        with patch("as400_api.requests.request", return_value=respuesta) as request_mock:
+            resultado = as400_api.crear_asiento_contable(
+                empresa,
+                "tester",
+                [
+                    {
+                        "cuenta": "4000000186",
+                        "fecha": "20260630",
+                        "importe": 1,
+                        "debe_haber": "D",
+                        "concepto": "Prueba",
+                    },
+                    {
+                        "cuenta": "5720000001",
+                        "fecha": "20260630",
+                        "importe": 1,
+                        "debe_haber": "H",
+                        "concepto": "Prueba",
+                    },
+                ],
+            )
+
+        url = request_mock.call_args.kwargs.get("url") or request_mock.call_args.args[1]
+        self.assertIn("/PEDIDOS/asientos/crear", url)
+        self.assertNotIn("/IAERP/", url)
+        self.assertTrue(resultado["success"])
+        self.assertEqual(resultado["numero_asiento"], 42)
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ from pathlib import Path
 
 from config import Config
 
-CONTABILIDAD_OPERACIONES = frozenset({"cuentas", "crear_asiento"})
+CONTABILIDAD_OPERACIONES = frozenset({"cuentas"})
 
 DEFAULT_ENDPOINTS = {
     "proveedores": "/proveedores",

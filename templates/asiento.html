@@ -171,6 +171,10 @@
             background: #fef2f2;
         }
 
+        .lineas-tabla tr.fila-incompleta td {
+            background: #fffbeb;
+        }
+
         .col-importe {
             width: 120px;
         }
@@ -1377,6 +1381,7 @@
             } finally {
                 cuentasCargando = false;
                 setRecargarCuentasActivo(true);
+                actualizarCamposCuenta();
             }
         }
 
@@ -1437,6 +1442,93 @@
                 && Boolean(linea.concepto)
                 && Number.isFinite(linea.importe)
                 && linea.importe > 0;
+        }
+
+        function esLineaParaTotales(linea) {
+            return Number.isFinite(linea.importe)
+                && linea.importe > 0
+                && (linea.debe_haber === "D" || linea.debe_haber === "H");
+        }
+
+        function normalizarCodigoCuentaManual(texto) {
+            const limpio = String(texto || "").trim();
+            const coincidencia = limpio.match(/^(\d{8,10})(?:\s|$|[-–])/)
+                || limpio.match(/^(\d{8,10})$/);
+
+            return coincidencia ? coincidencia[1].padStart(10, "0") : "";
+        }
+
+        function aplicarCuentaManualDesdeBusqueda(fila, esContrapartida = false) {
+            const selectores = selectoresCuenta(esContrapartida);
+            const busqueda = fila.querySelector(selectores.busqueda);
+            const codigo = fila.querySelector(selectores.codigo);
+
+            if (!busqueda || !codigo || codigo.value.trim()) {
+                return false;
+            }
+
+            const cuenta = normalizarCodigoCuentaManual(busqueda.value);
+
+            if (!cuenta) {
+                return false;
+            }
+
+            codigo.value = cuenta;
+            busqueda.value = cuenta;
+            fila.dataset[selectores.datasetKey] = cuenta;
+            return true;
+        }
+
+        function sincronizarFilasAntesDeCalcular() {
+            for (const fila of lineasBody.querySelectorAll("tr")) {
+                if (fila.dataset.lineaTipo === "contrapartida") {
+                    continue;
+                }
+
+                aplicarCuentaManualDesdeBusqueda(fila, false);
+
+                const conceptoInput = fila.querySelector(".campo-concepto");
+                const datos = leerDatosFila(fila);
+
+                if (
+                    conceptoInput
+                    && !conceptoInput.readOnly
+                    && !conceptoInput.value.trim()
+                    && datos.cuenta
+                    && Number.isFinite(datos.importe)
+                    && datos.importe > 0
+                ) {
+                    conceptoInput.value = "Sin concepto";
+                }
+            }
+        }
+
+        function motivoDescuadre(lineasValidas, lineasInvalidas, debe, haber, debeValido, haberValido) {
+            const importesCuadrados = Math.abs(debe - haber) < 0.005;
+            const validasCuadradas = lineasValidas.length > 0
+                && Math.abs(debeValido - haberValido) < 0.005;
+
+            if (lineasValidas.length < 2) {
+                if (importesCuadrados && lineasInvalidas.length > 0) {
+                    return "Falta cuenta o concepto";
+                }
+
+                return "Descuadrado";
+            }
+
+            if (lineasInvalidas.length > 0) {
+                if (importesCuadrados || validasCuadradas) {
+                    return "Falta cuenta o concepto";
+                }
+
+                return "Descuadrado";
+            }
+
+            if (!importesCuadrados) {
+                return "Descuadrado";
+            }
+
+            return "Descuadrado";
         }
 
         function descripcionParaEjemplo() {
@@ -2244,6 +2336,7 @@
             fila.dataset[selectores.datasetKey] = `${cuenta.codigo} - ${cuenta.nombre ?? ""}`;
             dropdown.hidden = true;
             reiniciarAsientoIdempotencyKey();
+            actualizarTotales();
         }
 
         function initCuentaCombobox(fila, esContrapartida = false, onSelect = null) {
@@ -2276,6 +2369,11 @@
                     const lista = await obtenerCuentasParaBusqueda(busqueda.value, dropdown);
                     renderCuentaDropdown(dropdown, lista, busqueda.value);
                 }
+            });
+
+            busqueda.addEventListener("blur", () => {
+                aplicarCuentaManualDesdeBusqueda(fila, esContrapartida);
+                actualizarTotales();
             });
 
             busqueda.addEventListener("input", () => {
@@ -2629,6 +2727,8 @@
         }
 
         function leerLineas() {
+            sincronizarFilasAntesDeCalcular();
+
             return Array.from(lineasBody.querySelectorAll("tr")).map((fila) => ({
                 cuenta: fila.querySelector(".campo-cuenta").value.trim(),
                 fecha: fila.querySelector(".campo-fecha").value,
@@ -2641,24 +2741,31 @@
         function actualizarTotales() {
             let debe = 0;
             let haber = 0;
+            let debeValido = 0;
+            let haberValido = 0;
             const lineas = leerLineas();
             const lineasValidas = lineas.filter(esLineaValida);
+            const lineasParaTotales = lineas.filter(esLineaParaTotales);
             const lineasInvalidas = lineas.filter(
                 (linea) => !esLineaVacia(linea) && !esLineaValida(linea)
             );
 
             for (const fila of lineasBody.querySelectorAll("tr")) {
+                const datos = leerDatosFila(fila);
                 const importe = parseFloat(fila.querySelector(".campo-importe")?.value || "0");
                 const campoImporte = fila.querySelector(".campo-importe");
-                const incompleta = !esLineaVacia(leerDatosFila(fila))
+                const incompleta = !esLineaVacia(datos)
                     && (!Number.isFinite(importe) || importe <= 0);
+                const lineaIncompleta = !esLineaVacia(datos) && !esLineaValida(datos);
 
                 if (campoImporte) {
                     campoImporte.classList.toggle("importe-invalido", incompleta);
                 }
+
+                fila.classList.toggle("fila-incompleta", lineaIncompleta);
             }
 
-            for (const linea of lineasValidas) {
+            for (const linea of lineasParaTotales) {
                 if (linea.debe_haber === "D") {
                     debe += linea.importe;
                 } else {
@@ -2666,13 +2773,43 @@
                 }
             }
 
-            totalDebe.textContent = debe.toFixed(2);
-            totalHaber.textContent = haber.toFixed(2);
+            for (const linea of lineasValidas) {
+                if (linea.debe_haber === "D") {
+                    debeValido += linea.importe;
+                } else {
+                    haberValido += linea.importe;
+                }
+            }
 
-            const cuadrado = lineasValidas.length > 0 && Math.abs(debe - haber) < 0.005;
-            estadoCuadre.textContent = cuadrado ? "Cuadrado" : "Descuadrado";
-            estadoCuadre.className = cuadrado ? "cuadrado" : "descuadrado";
-            btnConfirmar.disabled = !cuadrado || lineasInvalidas.length > 0;
+            if (totalDebe) {
+                totalDebe.textContent = debe.toFixed(2);
+            }
+
+            if (totalHaber) {
+                totalHaber.textContent = haber.toFixed(2);
+            }
+
+            const cuadrado = lineasValidas.length >= 2
+                && lineasInvalidas.length === 0
+                && Math.abs(debeValido - haberValido) < 0.005;
+
+            if (estadoCuadre) {
+                estadoCuadre.textContent = cuadrado
+                    ? "Cuadrado"
+                    : motivoDescuadre(
+                        lineasValidas,
+                        lineasInvalidas,
+                        debe,
+                        haber,
+                        debeValido,
+                        haberValido
+                    );
+                estadoCuadre.className = cuadrado ? "cuadrado" : "descuadrado";
+            }
+
+            if (btnConfirmar) {
+                btnConfirmar.disabled = !cuadrado;
+            }
         }
 
         async function validarAsientoAntesDeConfirmar(lineas) {

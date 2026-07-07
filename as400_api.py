@@ -15,7 +15,8 @@ from empresas_store import contabilidad_base_url, endpoint_path
 from as400_api_cuentas import normalizar_registro_cuenta
 from cuenta_tipos import enriquecer_cuenta
 
-CONTABILIDAD_OPERACIONES = frozenset({"cuentas", "crear_asiento"})
+# crear_asiento est? en el mismo SRVPGM/WS que pedidos (swagger PEDIDOS)
+CONTABILIDAD_OPERACIONES = frozenset({"cuentas"})
 _STATUS_LOCK = Lock()
 _AS400_STATUS = {
     "servicios": {},
@@ -105,7 +106,14 @@ class AS400ApiError(Exception):
 
 
 def _success_ok(value):
-    return value in (True, "1", 1, "true", "True")
+    if value is None:
+        return False
+
+    if value is True or value is False:
+        return value is True
+
+    texto = str(value).strip().lower()
+    return texto in {"1", "true", "y", "yes", "s", "si", "s?"}
 
 
 def _normalizar_fecha_as400(fecha):
@@ -120,21 +128,73 @@ def _normalizar_fecha_as400(fecha):
     return texto
 
 
+def _primer_valor_articulo(articulo, *claves, default=None):
+    for clave in claves:
+        valor = articulo.get(clave)
+
+        if valor is not None and str(valor).strip() != "":
+            return valor
+
+    return default
+
+
+def _entero_respuesta_articulos(data, salida, articulos):
+    for valor in (
+        salida.get("numArticulos"),
+        salida.get("lineas_salida"),
+        data.get("numArticulos"),
+        data.get("lineas_salida"),
+    ):
+        try:
+            return int(valor)
+        except (TypeError, ValueError):
+            continue
+
+    return len(articulos)
+
+
 def _normalizar_articulo(articulo):
     articulo = dict(articulo)
 
     if articulo.get("precio") is None:
         articulo["precio"] = 0
 
-    for campo in ("stockOtros", "reservado", "pendiente"):
+    stock_otros = _primer_valor_articulo(
+        articulo,
+        "stockOtros",
+        "stock_otros",
+        "stockotros",
+        default=0,
+    )
+    consumo_diario = _primer_valor_articulo(
+        articulo,
+        "Consumo_Diario",
+        "consumo_diario",
+        "consumoDiario",
+        default=0,
+    )
+
+    articulo["stockOtros"] = stock_otros
+    articulo["Consumo_Diario"] = consumo_diario
+    articulo["consumo_diario"] = consumo_diario
+
+    for campo in ("stock", "reservado", "pendiente"):
         if articulo.get(campo) is None:
             articulo[campo] = 0
 
     articulo["fecha_ultimo"] = _normalizar_fecha_as400(
-        articulo.get("fecha_ultimo")
+        _primer_valor_articulo(
+            articulo,
+            "fecha_ultimo",
+            "fechaUltimo",
+        )
     )
     articulo["fecha_ultimo_consumo"] = _normalizar_fecha_as400(
-        articulo.get("fecha_ultimo_consumo")
+        _primer_valor_articulo(
+            articulo,
+            "fecha_ultimo_consumo",
+            "fechaUltimoConsumo",
+        )
     )
 
     return articulo
@@ -161,7 +221,7 @@ def _build_url(empresa, endpoint, params=None, operacion=None):
     base_url = _resolve_base_url(empresa, operacion)
 
     if not base_url:
-        raise AS400ApiError("No hay URL base configurada para la petición")
+        raise AS400ApiError("No hay URL base configurada para la petici?n")
 
     url = f"{base_url}/{endpoint.lstrip('/')}"
 
@@ -184,16 +244,16 @@ def _parse_json_response(response):
             return json.loads(texto)
         except ValueError:
             raise AS400ApiError(
-                f"El AS/400 no devolvió JSON válido: {response.text[:500]}"
+                f"El AS/400 no devolvi? JSON v?lido: {response.text[:500]}"
             )
 
 
 def _request(empresa, method, operacion, params=None, **kwargs):
     if not empresa:
-        raise AS400ApiError("No hay empresa configurada para la petición")
+        raise AS400ApiError("No hay empresa configurada para la petici?n")
 
     if not _resolve_base_url(empresa, operacion):
-        raise AS400ApiError("No hay empresa configurada para la petición")
+        raise AS400ApiError("No hay empresa configurada para la petici?n")
 
     endpoint = endpoint_path(empresa, operacion)
     url = _build_url(empresa, endpoint, params, operacion=operacion)
@@ -207,7 +267,7 @@ def _request(empresa, method, operacion, params=None, **kwargs):
             method=method,
             url=url,
             auth=_get_auth(empresa),
-            timeout=20,
+            timeout=60,
             **kwargs
         )
 
@@ -218,6 +278,18 @@ def _request(empresa, method, operacion, params=None, **kwargs):
 
     if response.status_code >= 400:
         mensaje = response.text.strip() or f"Error HTTP {response.status_code}"
+        try:
+            error_json = response.json()
+        except ValueError:
+            error_json = None
+
+        if isinstance(error_json, dict):
+            salida_error = error_json.get("salida")
+            if isinstance(salida_error, dict) and salida_error.get("mensaje"):
+                mensaje = str(salida_error["mensaje"]).strip()
+            elif error_json.get("mensaje"):
+                mensaje = str(error_json["mensaje"]).strip()
+
         _registrar_estado_as400(empresa, operacion, False, respuesta_ms(), mensaje)
         raise AS400ApiError(mensaje)
 
@@ -227,7 +299,7 @@ def _request(empresa, method, operacion, params=None, **kwargs):
         _registrar_estado_as400(empresa, operacion, False, respuesta_ms(), str(error))
         raise
     except ValueError:
-        mensaje = f"El AS/400 no devolvió JSON válido: {response.text[:500]}"
+        mensaje = f"El AS/400 no devolvi? JSON v?lido: {response.text[:500]}"
         _registrar_estado_as400(empresa, operacion, False, respuesta_ms(), mensaje)
         raise AS400ApiError(mensaje)
 
@@ -263,7 +335,7 @@ def normalizar_fecha_analisis(fecha):
         return _fecha_analisis_por_defecto()
 
     if len(texto) != 8 or not texto.isdigit():
-        raise AS400ApiError("La fecha de análisis no es válida")
+        raise AS400ApiError("La fecha de an?lisis no es v?lida")
 
     return texto
 
@@ -275,7 +347,7 @@ def obtener_articulos(empresa, proveedor_codigo, fechaAnalisis=None):
     proveedor = str(proveedor_codigo).strip()
 
     if not proveedor:
-        raise AS400ApiError("Falta el código de proveedor")
+        raise AS400ApiError("Falta el c?digo de proveedor")
 
     data = _request(
         empresa,
@@ -288,14 +360,20 @@ def obtener_articulos(empresa, proveedor_codigo, fechaAnalisis=None):
     )
     salida = data.get("salida", data)
     articulos = salida.get("articulos", [])
-    try:
-        num_articulos = int(salida.get("numArticulos", len(articulos)))
-    except (TypeError, ValueError):
-        num_articulos = len(articulos)
+    num_articulos = _entero_respuesta_articulos(data, salida, articulos)
 
     num_articulos = min(num_articulos, len(articulos))
+    normalizados = []
 
-    return [_normalizar_articulo(articulo) for articulo in articulos[:num_articulos]]
+    for articulo in articulos[:num_articulos]:
+        normalizado = _normalizar_articulo(articulo)
+
+        if not str(normalizado.get("codigo") or "").strip():
+            continue
+
+        normalizados.append(normalizado)
+
+    return normalizados
 
 
 def _normalizar_almacen(almacen):
@@ -320,7 +398,7 @@ def obtener_stocks(empresa, codigo_articulo):
     codigo = str(codigo_articulo or "").strip()
 
     if not codigo:
-        raise AS400ApiError("Falta el código de artículo")
+        raise AS400ApiError("Falta el c?digo de art?culo")
 
     data = _request(
         empresa,
@@ -475,7 +553,7 @@ def normalizar_fecha_asiento(fecha):
         raise AS400ApiError("Falta la fecha del asiento")
 
     if len(texto) != 8 or not texto.isdigit():
-        raise AS400ApiError("La fecha del asiento no es válida")
+        raise AS400ApiError("La fecha del asiento no es v?lida")
 
     return texto
 
@@ -505,7 +583,7 @@ def crear_asiento_contable(empresa, usuario, lineas):
         })
 
     payload = {
-        "usuario": usuario,
+        "usuario": str(usuario or "").strip()[:20],
         "numLineasIn": len(lineas_payload),
         "lineas": lineas_payload,
     }
