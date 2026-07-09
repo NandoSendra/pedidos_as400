@@ -473,7 +473,6 @@ def obtener_almacenes_pedido(empresa):
 
         validos.append(normalizado)
 
-    validos.sort(key=lambda item: (item["nombre"].lower(), item["codigo"]))
     return validos
 
 

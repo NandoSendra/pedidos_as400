@@ -55,11 +55,39 @@ class AlmacenesPedidoTests(unittest.TestCase):
                 {"codigo": 2, "nombre": "Secundario"},
             ],
         )
+        self.assertEqual([item["codigo"] for item in almacenes], [1, 2])
         request_mock.assert_called_once()
         self.assertEqual(
             request_mock.call_args.kwargs["url"],
             "http://as400.test/IAERP/almacenes",
         )
+
+    def test_obtener_almacenes_pedido_conserva_orden_api(self):
+        empresa = {
+            "id": "1",
+            "url_almacenes": "http://as400.test/IAERP/almacenes",
+        }
+
+        class RespuestaOrdenApi:
+            status_code = 200
+            text = ""
+
+            def json(self):
+                return {
+                    "IAERPCR_Get_almacenes_R": [
+                        {"CODIGO": 1, "NOMBRE": "Central"},
+                        {"CODIGO": 131, "NOMBRE": "Auto 1"},
+                        {"CODIGO": 100, "NOMBRE": "Tenerife"},
+                    ]
+                }
+
+        with patch(
+            "as400_api.requests.request",
+            return_value=RespuestaOrdenApi(),
+        ):
+            almacenes = obtener_almacenes_pedido(empresa)
+
+        self.assertEqual([item["codigo"] for item in almacenes], [1, 131, 100])
 
     def test_obtener_articulos_envia_intervalo_y_almacen(self):
         empresa = {
