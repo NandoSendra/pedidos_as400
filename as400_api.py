@@ -340,23 +340,201 @@ def normalizar_fecha_analisis(fecha):
     return texto
 
 
-def obtener_articulos(empresa, proveedor_codigo, fechaAnalisis=None):
+def _fecha_hasta_por_defecto():
+    from datetime import date
+
+    return date.today().strftime("%Y%m%d")
+
+
+def _normalizar_fecha_pedido(fecha, por_defecto=None):
+    texto = str(fecha or "").strip().replace("-", "")
+
+    if not texto:
+        if por_defecto is None:
+            raise AS400ApiError("Falta una fecha del intervalo de consumos")
+
+        return por_defecto
+
+    if len(texto) != 8 or not texto.isdigit():
+        raise AS400ApiError("La fecha del intervalo de consumos no es v?lida")
+
+    return texto
+
+
+def _request_absoluta(empresa, method, url, operacion, **kwargs):
+    if not empresa:
+        raise AS400ApiError("No hay empresa configurada para la petici?n")
+
+    url = str(url or "").strip()
+
+    if not url:
+        raise AS400ApiError("No hay URL configurada para la petici?n")
+
+    inicio = time.perf_counter()
+
+    def respuesta_ms():
+        return int(round((time.perf_counter() - inicio) * 1000))
+
+    try:
+        response = requests.request(
+            method=method,
+            url=url,
+            auth=_get_auth(empresa),
+            timeout=60,
+            **kwargs,
+        )
+    except requests.RequestException as error:
+        mensaje = f"No se pudo conectar con el AS/400: {error}"
+        _registrar_estado_as400(empresa, operacion, False, respuesta_ms(), mensaje)
+        raise AS400ApiError(mensaje)
+
+    if response.status_code >= 400:
+        mensaje = response.text.strip() or f"Error HTTP {response.status_code}"
+        _registrar_estado_as400(empresa, operacion, False, respuesta_ms(), mensaje)
+        raise AS400ApiError(mensaje)
+
+    try:
+        data = _parse_json_response(response)
+    except AS400ApiError as error:
+        _registrar_estado_as400(empresa, operacion, False, respuesta_ms(), str(error))
+        raise
+    except ValueError:
+        mensaje = f"El AS/400 no devolvi? JSON v?lido: {response.text[:500]}"
+        _registrar_estado_as400(empresa, operacion, False, respuesta_ms(), mensaje)
+        raise AS400ApiError(mensaje)
+
+    if data.get("success") is False:
+        mensaje = data.get("mensaje", "Error devuelto por AS/400")
+        _registrar_estado_as400(empresa, operacion, False, respuesta_ms(), mensaje)
+        raise AS400ApiError(mensaje)
+
+    _registrar_estado_as400(empresa, operacion, True, respuesta_ms())
+    return data
+
+
+def _extraer_lista_almacenes_pedido(data):
+    if not isinstance(data, dict):
+        return []
+
+    for clave, valor in data.items():
+        if isinstance(valor, list) and "almacen" in str(clave).lower():
+            return valor
+
+    salida = data.get("salida")
+
+    if isinstance(salida, dict) and isinstance(salida.get("almacenes"), list):
+        return salida["almacenes"]
+
+    if isinstance(data.get("almacenes"), list):
+        return data["almacenes"]
+
+    return []
+
+
+def _normalizar_almacen_pedido(registro):
+    codigo = registro.get("CODIGO")
+
+    if codigo is None:
+        codigo = registro.get("codigo", registro.get("codigoAlmacen"))
+
+    nombre = (
+        registro.get("NOMBRE")
+        or registro.get("nombre")
+        or registro.get("nombreAlmacen")
+        or ""
+    )
+
+    try:
+        codigo_num = int(codigo)
+    except (TypeError, ValueError):
+        codigo_num = 0
+
+    return {
+        "codigo": codigo_num,
+        "nombre": str(nombre).strip(),
+    }
+
+
+def obtener_almacenes_pedido(empresa):
+    url = str(empresa.get("url_almacenes") or "").strip().rstrip("/")
+
+    if not url:
+        raise AS400ApiError("No hay URL de almacenes configurada para la empresa")
+
+    data = _request_absoluta(empresa, "GET", url, operacion="almacenes_pedido")
+    registros = _extraer_lista_almacenes_pedido(data)
+    validos = []
+
+    for registro in registros:
+        normalizado = _normalizar_almacen_pedido(registro)
+
+        if normalizado["codigo"] <= 0 or not normalizado["nombre"]:
+            continue
+
+        validos.append(normalizado)
+
+    validos.sort(key=lambda item: (item["nombre"].lower(), item["codigo"]))
+    return validos
+
+
+def obtener_articulos(
+    empresa,
+    proveedor_codigo,
+    fechaAnalisis=None,
+    fecha_desde=None,
+    fecha_hasta=None,
+    almacen=None,
+    todos_articulos=False,
+):
     """
-    GET /articulos?proveedor={codigo}&fechaAnalisis={aaaammdd}
+    GET /articulos?proveedor={codigo}&fechaAnalisisDesde={aaaammdd}
+        &fechaAnalisisHasta={aaaammdd}&almacen={codigo}
     """
     proveedor = str(proveedor_codigo).strip()
 
     if not proveedor:
         raise AS400ApiError("Falta el c?digo de proveedor")
 
+    if almacen is None or str(almacen).strip() == "":
+        raise AS400ApiError("Falta el c?digo de almac?n")
+
+    try:
+        almacen_codigo = int(almacen)
+    except (TypeError, ValueError) as error:
+        raise AS400ApiError("El c?digo de almac?n no es v?lido") from error
+
+    if almacen_codigo <= 0:
+        raise AS400ApiError("El c?digo de almac?n no es v?lido")
+
+    params = {
+        "proveedor": proveedor,
+        "almacen": str(almacen_codigo),
+    }
+
+    if todos_articulos:
+        params["fechaAnalisisDesde"] = "19000101"
+        params["fechaAnalisisHasta"] = "20991231"
+    elif fecha_desde or fecha_hasta or not fechaAnalisis:
+        desde = _normalizar_fecha_pedido(fecha_desde, _fecha_analisis_por_defecto())
+        hasta = _normalizar_fecha_pedido(fecha_hasta, _fecha_hasta_por_defecto())
+
+        if desde > hasta:
+            raise AS400ApiError(
+                "La fecha desde del intervalo de consumos no puede ser posterior a la fecha hasta"
+            )
+
+        params["fechaAnalisisDesde"] = desde
+        params["fechaAnalisisHasta"] = hasta
+    else:
+        fecha = normalizar_fecha_analisis(fechaAnalisis)
+        params["fechaAnalisisDesde"] = fecha
+        params["fechaAnalisisHasta"] = fecha
+
     data = _request(
         empresa,
         "GET",
         "articulos",
-        params={
-            "proveedor": proveedor,
-            "fechaAnalisis": normalizar_fecha_analisis(fechaAnalisis),
-        },
+        params=params,
     )
     salida = data.get("salida", data)
     articulos = salida.get("articulos", [])
@@ -513,7 +691,7 @@ def obtener_cuentas(empresa):
     return validas
 
 
-def crear_pedido(empresa, proveedor_codigo, usuario, carrito):
+def crear_pedido(empresa, proveedor_codigo, usuario, carrito, almacen=None):
     lineas = [
         {
             "codigo_articulo": str(item["codigo"]).strip(),
@@ -529,6 +707,14 @@ def crear_pedido(empresa, proveedor_codigo, usuario, carrito):
         "numLineasIn": len(lineas),
         "lineas": lineas
     }
+
+    campo_almacen = str(empresa.get("pedido_campo_almacen") or "").strip()
+
+    if campo_almacen and almacen is not None and str(almacen).strip() != "":
+        try:
+            payload[campo_almacen] = int(almacen)
+        except (TypeError, ValueError) as error:
+            raise AS400ApiError("El c?digo de almac?n del pedido no es v?lido") from error
 
     data = _request(empresa, "POST", "crear_pedido", json=payload)
 

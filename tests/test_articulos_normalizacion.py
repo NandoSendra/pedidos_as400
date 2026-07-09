@@ -61,7 +61,7 @@ class ArticulosNormalizacionTests(unittest.TestCase):
         }
 
         with patch("as400_api.requests.request", return_value=FakeResponse()):
-            articulos = obtener_articulos(empresa, "123", "20260601")
+            articulos = obtener_articulos(empresa, "123", "20260601", almacen="1")
 
         self.assertEqual([articulo["codigo"] for articulo in articulos], ["A1", "A2"])
 
@@ -76,7 +76,7 @@ class ArticulosNormalizacionTests(unittest.TestCase):
             "as400_api.requests.request",
             return_value=FakeTopLevelLineasSalidaResponse(),
         ):
-            articulos = obtener_articulos(empresa, "123", "20260601")
+            articulos = obtener_articulos(empresa, "123", "20260601", almacen="1")
 
         self.assertEqual([articulo["codigo"] for articulo in articulos], ["A1", "A2"])
 

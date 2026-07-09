@@ -5,6 +5,8 @@
       "nombre": "Casa Ricardo",
       "base_url": "http://80.28.249.31:10014/web/services/PEDIDOS",
       "contabilidad_base_url": "http://80.28.249.31:10014/web/services/IAERP",
+      "url_almacenes": "http://80.28.249.31:10014/web/services/IAERP/almacenes",
+      "pedido_campo_almacen": "almacen",
       "endpoints": {
         "proveedores": "/proveedores",
         "articulos": "/articulos",

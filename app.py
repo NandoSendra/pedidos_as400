@@ -45,6 +45,7 @@ from as400_api import (
     crear_asiento_contable,
     crear_pedido,
     get_as400_status,
+    obtener_almacenes_pedido,
     obtener_articulos,
     obtener_proveedores,
     obtener_stocks,
@@ -363,6 +364,11 @@ def _confirmar_pedido_data(data, origen_reintento_id=None):
     if not proveedor_codigo:
         return {"success": False, "mensaje": "Seleccione un proveedor"}, 400
 
+    almacen_codigo = str(data.get("almacen", "")).strip()
+
+    if not almacen_codigo:
+        return {"success": False, "mensaje": "Seleccione un almacén de destino"}, 400
+
     try:
         carrito, lineas_historial = _preparar_lineas_pedido(data.get("lineas", []))
     except ValueError as error:
@@ -378,6 +384,10 @@ def _confirmar_pedido_data(data, origen_reintento_id=None):
     payload_historial = {
         "proveedor": proveedor_codigo,
         "proveedor_nombre": str(data.get("proveedor_nombre", "")).strip(),
+        "almacen": almacen_codigo,
+        "almacen_nombre": str(data.get("almacen_nombre", "")).strip(),
+        "fecha_consumo_desde": str(data.get("fecha_consumo_desde", "")).strip(),
+        "fecha_consumo_hasta": str(data.get("fecha_consumo_hasta", "")).strip(),
         "lineas": lineas_historial,
     }
     estado, operacion = crear_o_recuperar_operacion(
@@ -400,7 +410,13 @@ def _confirmar_pedido_data(data, origen_reintento_id=None):
         return _respuesta_operacion_existente(operacion)
 
     try:
-        resultado = crear_pedido(empresa, proveedor_codigo, usuario, carrito)
+        resultado = crear_pedido(
+            empresa,
+            proveedor_codigo,
+            usuario,
+            carrito,
+            almacen=almacen_codigo,
+        )
         body = dict(resultado)
         body["historial_id"] = operacion.get("id")
         body["idempotency_key"] = idempotency_key
@@ -1128,15 +1144,52 @@ def pedido():
     ), status
 
 
+@app.route("/api/almacenes")
+def api_almacenes():
+    empresa = ensure_empresa_session(session.get("usuario"))
+
+    if not empresa:
+        return jsonify({
+            "success": False,
+            "mensaje": "No hay empresa seleccionada"
+        }), 400
+
+    try:
+        almacenes = obtener_almacenes_pedido(empresa)
+
+        return jsonify({
+            "success": True,
+            "almacenes": almacenes,
+        })
+
+    except AS400ApiError as error:
+        return jsonify({
+            "success": False,
+            "mensaje": str(error),
+        }), 500
+
+
 @app.route("/api/articulos")
 def api_articulos():
     proveedor_codigo = request.args.get("proveedor", "").strip()
     fechaAnalisis = request.args.get("fechaAnalisis", "").strip()
+    fecha_desde = request.args.get("fechaDesde", "").strip()
+    fecha_hasta = request.args.get("fechaHasta", "").strip()
+    almacen = request.args.get("almacen", "").strip()
+    todos_articulos = request.args.get("todosArticulos", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
 
     if not proveedor_codigo:
         return jsonify({
             "success": False,
             "mensaje": "Seleccione un proveedor"
+        }), 400
+
+    if not almacen:
+        return jsonify({
+            "success": False,
+            "mensaje": "Seleccione un almacén"
         }), 400
 
     empresa = ensure_empresa_session(session.get("usuario"))
@@ -1148,7 +1201,15 @@ def api_articulos():
         }), 400
 
     try:
-        articulos = obtener_articulos(empresa, proveedor_codigo, fechaAnalisis)
+        articulos = obtener_articulos(
+            empresa,
+            proveedor_codigo,
+            fechaAnalisis=fechaAnalisis,
+            fecha_desde=fecha_desde,
+            fecha_hasta=fecha_hasta,
+            almacen=almacen,
+            todos_articulos=todos_articulos,
+        )
 
         return jsonify({
             "success": True,

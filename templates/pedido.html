@@ -128,6 +128,44 @@
             cursor: not-allowed;
         }
 
+        .header-fechas-grupo {
+            display: flex;
+            align-items: center;
+            gap: .45rem;
+        }
+
+        .header-fechas-sep {
+            font-weight: 700;
+            opacity: .85;
+        }
+
+        .almacen-campo {
+            min-width: 240px;
+            max-width: 360px;
+        }
+
+        .almacen-campo select {
+            width: 100%;
+            padding: .65rem .75rem;
+            border: 2px solid #d1d5db;
+            border-radius: 10px;
+            font-size: .95rem;
+            font-weight: 600;
+            color: #1f2937;
+            background: white;
+        }
+
+        .almacen-campo select:focus {
+            outline: none;
+            border-color: #1e7883;
+            box-shadow: 0 0 0 3px rgba(30, 120, 131, .15);
+        }
+
+        .almacen-campo select:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+        }
+
         .todos-articulos-label {
             display: flex;
             align-items: center;
@@ -993,10 +1031,14 @@
                 {% elif empresa_actual %}
                 <span class="header-empresa-label">{{ empresa_actual.nombre }}</span>
                 {% endif %}
-                <label class="header-fecha-analisis" for="fechaAnalisis">
-                    Fecha análisis Consumos
-                    <input type="date" id="fechaAnalisis" title="Fecha de análisis enviada al AS/400">
-                    <label class="todos-articulos-label" for="todosArticulos" title="Ignorar fecha y traer todos los artículos del proveedor">
+                <label class="header-fecha-analisis" for="fechaConsumoDesde">
+                    Consumos
+                    <span class="header-fechas-grupo">
+                        <input type="date" id="fechaConsumoDesde" title="Fecha inicio del intervalo de consumos">
+                        <span class="header-fechas-sep">→</span>
+                        <input type="date" id="fechaConsumoHasta" title="Fecha fin del intervalo de consumos">
+                    </span>
+                    <label class="todos-articulos-label" for="todosArticulos" title="Ignorar fechas y traer todos los artículos del proveedor">
                         <input type="checkbox" id="todosArticulos"> Todos
                     </label>
                 </label>
@@ -1033,6 +1075,13 @@
                 <input type="hidden" id="proveedorCodigo" value="">
                 <div class="proveedor-dropdown" id="proveedorDropdown" hidden></div>
             </div>
+        </div>
+
+        <div class="proveedor-campo almacen-campo">
+            <label for="almacenSelector">Almacén destino</label>
+            <select id="almacenSelector" disabled>
+                <option value="">Cargando almacenes...</option>
+            </select>
         </div>
 
         <button type="button" class="btn-todos-articulos" id="btnTodosArticulos">
@@ -1184,10 +1233,14 @@
         const filtroRupturaInminente = document.getElementById("filtroRupturaInminente");
         const filtroSinConsumoReciente = document.getElementById("filtroSinConsumoReciente");
         const coberturaDias = document.getElementById("coberturaDias");
-        const fechaAnalisis = document.getElementById("fechaAnalisis");
+        const fechaConsumoDesde = document.getElementById("fechaConsumoDesde");
+        const fechaConsumoHasta = document.getElementById("fechaConsumoHasta");
+        const almacenSelector = document.getElementById("almacenSelector");
         const empresaSelector = document.getElementById("empresaSelector");
 
         let proveedorSeleccionado = null;
+        let almacenesData = [];
+        let almacenSeleccionado = null;
         let cargandoArticulos = false;
         let pedidoIdempotencyKey = null;
         let articulosData = [];
@@ -1291,7 +1344,11 @@
                 idempotency_key: obtenerPedidoIdempotencyKey(),
                 proveedor,
                 proveedor_nombre: proveedorSeleccionado?.nombre || "",
-                fecha: obtenerFechaAnalisisAs400(),
+                almacen: obtenerAlmacenSeleccionado(),
+                almacen_nombre: almacenSeleccionado?.nombre || "",
+                fecha_consumo_desde: obtenerFechaConsumoDesdeAs400(),
+                fecha_consumo_hasta: obtenerFechaConsumoHastaAs400(),
+                fecha: obtenerFechaConsumoHastaAs400(),
                 lineas: items.map(item => ({
                     codigo_articulo: item.codigo,
                     descripcion: item.descripcion,
@@ -1314,8 +1371,21 @@
                 avisos.push("El proveedor no tiene nombre asociado en la selección.");
             }
 
-            if (!fechaAnalisis?.value && !todosArticulosActivo()) {
-                avisos.push("No hay fecha de análisis de consumos informada.");
+            if (!obtenerAlmacenSeleccionado()) {
+                avisos.push("No hay almacén de destino seleccionado.");
+            }
+
+            if (!todosArticulosActivo() && (!fechaConsumoDesde?.value || !fechaConsumoHasta?.value)) {
+                avisos.push("No hay intervalo de fechas de consumos informado.");
+            }
+
+            if (
+                !todosArticulosActivo()
+                && fechaConsumoDesde?.value
+                && fechaConsumoHasta?.value
+                && fechaConsumoDesde.value > fechaConsumoHasta.value
+            ) {
+                avisos.push("La fecha desde es posterior a la fecha hasta.");
             }
 
             items.forEach(item => {
@@ -1374,7 +1444,9 @@
                 <div class="preconfirm-grid">
                     <div class="preconfirm-dato"><span>Empresa destino</span>${escapeHtml(nombreEmpresaActual())}</div>
                     <div class="preconfirm-dato"><span>Proveedor</span>${escapeHtml(proveedor)} ${escapeHtml(proveedorSeleccionado?.nombre || "")}</div>
-                    <div class="preconfirm-dato"><span>Fecha análisis</span>${escapeHtml(fechaAnalisis?.value || "-")}</div>
+                    <div class="preconfirm-dato"><span>Almacén</span>${escapeHtml(obtenerAlmacenSeleccionado() || "-")} ${escapeHtml(almacenSeleccionado?.nombre || "")}</div>
+                    <div class="preconfirm-dato"><span>Consumos desde</span>${escapeHtml(formatearIntervaloConsumos().desde)}</div>
+                    <div class="preconfirm-dato"><span>Consumos hasta</span>${escapeHtml(formatearIntervaloConsumos().hasta)}</div>
                     <div class="preconfirm-dato"><span>Cobertura</span>${obtenerDiasCobertura()} días</div>
                     <div class="preconfirm-dato"><span>Total</span>${total.toFixed(2)} €</div>
                 </div>
@@ -1676,10 +1748,100 @@
             actualizarListaArticulos();
         }
 
+        async function cargarAlmacenes() {
+            if (!almacenSelector) {
+                return;
+            }
+
+            almacenSelector.disabled = true;
+            almacenSelector.innerHTML = '<option value="">Cargando almacenes...</option>';
+
+            try {
+                const response = await fetch("/api/almacenes");
+                const data = await leerRespuestaApi(response);
+
+                if (!response.ok || data.success === false) {
+                    throw new Error(data.mensaje || "No se pudieron cargar los almacenes");
+                }
+
+                almacenesData = data.almacenes || [];
+                renderAlmacenSelector();
+
+                if (!almacenesData.length) {
+                    mostrarMensaje("No hay almacenes disponibles para esta empresa.", "error");
+                }
+            } catch (error) {
+                almacenesData = [];
+                almacenSeleccionado = null;
+                almacenSelector.innerHTML = `<option value="">${escapeHtml(error.message)}</option>`;
+                mostrarMensaje(error.message, "error");
+            }
+        }
+
+        function renderAlmacenSelector() {
+            if (!almacenSelector) {
+                return;
+            }
+
+            if (!almacenesData.length) {
+                almacenSelector.innerHTML = '<option value="">Sin almacenes</option>';
+                almacenSelector.disabled = true;
+                almacenSeleccionado = null;
+                return;
+            }
+
+            const valorActual = almacenSelector.value;
+            almacenSelector.innerHTML = [
+                '<option value="">Selecciona un almacén</option>',
+                ...almacenesData.map(almacen => `
+                    <option value="${escapeHtml(String(almacen.codigo))}">
+                        ${escapeHtml(String(almacen.codigo))} · ${escapeHtml(almacen.nombre || "")}
+                    </option>
+                `),
+            ].join("");
+
+            if (valorActual && almacenesData.some(almacen => String(almacen.codigo) === valorActual)) {
+                almacenSelector.value = valorActual;
+            }
+
+            almacenSelector.disabled = false;
+            actualizarAlmacenSeleccionado();
+        }
+
+        function actualizarAlmacenSeleccionado() {
+            const codigo = obtenerAlmacenSeleccionado();
+            almacenSeleccionado = almacenesData.find(
+                almacen => String(almacen.codigo) === String(codigo)
+            ) || null;
+        }
+
+        function obtenerAlmacenSeleccionado() {
+            return String(almacenSelector?.value || "").trim();
+        }
+
+        function almacenListoParaPedido() {
+            return Boolean(obtenerAlmacenSeleccionado());
+        }
+
         async function cargarArticulos(codigoProveedor) {
             const proveedor = String(codigoProveedor ?? "").trim();
 
             if (!proveedor) {
+                return;
+            }
+
+            if (!almacenListoParaPedido()) {
+                mostrarEstadoArticulos("Selecciona un almacén de destino para cargar los artículos.");
+                return;
+            }
+
+            if (
+                !todosArticulosActivo()
+                && fechaConsumoDesde?.value
+                && fechaConsumoHasta?.value
+                && fechaConsumoDesde.value > fechaConsumoHasta.value
+            ) {
+                mostrarEstadoArticulos("La fecha desde no puede ser posterior a la fecha hasta.");
                 return;
             }
 
@@ -1695,8 +1857,15 @@
             try {
                 const params = new URLSearchParams({
                     proveedor,
-                    fechaAnalisis: obtenerFechaAnalisisAs400()
+                    almacen: obtenerAlmacenSeleccionado(),
+                    fechaDesde: obtenerFechaConsumoDesdeAs400(),
+                    fechaHasta: obtenerFechaConsumoHastaAs400(),
                 });
+
+                if (todosArticulosActivo()) {
+                    params.set("todosArticulos", "1");
+                }
+
                 const response = await fetch(
                     `/api/articulos?${params.toString()}`,
                     { signal: controller.signal }
@@ -1773,6 +1942,12 @@
             proveedorSeleccionadoInfo.classList.remove("vacio");
 
             limpiarPedido();
+
+            if (!almacenListoParaPedido()) {
+                mostrarEstadoArticulos("Selecciona un almacén de destino para cargar los artículos.");
+                return;
+            }
+
             cargarArticulos(proveedor.codigo);
         }
 
@@ -1782,7 +1957,11 @@
             proveedorSeleccionadoInfo.textContent = "Selecciona un proveedor para cargar los artículos";
             proveedorSeleccionadoInfo.classList.add("vacio");
             limpiarPedido();
-            mostrarEstadoArticulos("Selecciona un proveedor para ver los artículos.");
+            mostrarEstadoArticulos(
+                almacenListoParaPedido()
+                    ? "Selecciona un proveedor para ver los artículos."
+                    : "Selecciona un almacén y un proveedor para ver los artículos."
+            );
         }
 
         function parseFechaAS400(fecha) {
@@ -1909,34 +2088,74 @@
             return `${ano}-${mes}-${dia}`;
         }
 
-        function obtenerFechaAnalisisPorDefecto() {
+        function obtenerFechaConsumoDesdePorDefecto() {
             const fecha = new Date();
             fecha.setMonth(fecha.getMonth() - 3);
             return formatearFechaInput(fecha);
+        }
+
+        function obtenerFechaConsumoHastaPorDefecto() {
+            return formatearFechaInput(new Date());
         }
 
         function todosArticulosActivo() {
             return document.getElementById("todosArticulos")?.checked;
         }
 
-        function inicializarFechaAnalisis() {
-            if (!fechaAnalisis || fechaAnalisis.value) {
-                return;
+        function inicializarFechasConsumo() {
+            if (fechaConsumoDesde && !fechaConsumoDesde.value) {
+                fechaConsumoDesde.value = obtenerFechaConsumoDesdePorDefecto();
             }
 
-            fechaAnalisis.value = obtenerFechaAnalisisPorDefecto();
+            if (fechaConsumoHasta && !fechaConsumoHasta.value) {
+                fechaConsumoHasta.value = obtenerFechaConsumoHastaPorDefecto();
+            }
         }
 
-        function obtenerFechaAnalisisAs400() {
+        function obtenerFechaConsumoDesdeAs400() {
             if (todosArticulosActivo()) {
                 return "19000101";
             }
 
-            if (!fechaAnalisis || !fechaAnalisis.value) {
-                return obtenerFechaAnalisisPorDefecto().replace(/-/g, "");
+            if (!fechaConsumoDesde || !fechaConsumoDesde.value) {
+                return obtenerFechaConsumoDesdePorDefecto().replace(/-/g, "");
             }
 
-            return fechaAnalisis.value.replace(/-/g, "");
+            return fechaConsumoDesde.value.replace(/-/g, "");
+        }
+
+        function obtenerFechaConsumoHastaAs400() {
+            if (todosArticulosActivo()) {
+                return "20991231";
+            }
+
+            if (!fechaConsumoHasta || !fechaConsumoHasta.value) {
+                return obtenerFechaConsumoHastaPorDefecto().replace(/-/g, "");
+            }
+
+            return fechaConsumoHasta.value.replace(/-/g, "");
+        }
+
+        function formatearIntervaloConsumos() {
+            if (todosArticulosActivo()) {
+                return { desde: "Todos", hasta: "Todos" };
+            }
+
+            return {
+                desde: fechaConsumoDesde?.value || "-",
+                hasta: fechaConsumoHasta?.value || "-",
+            };
+        }
+
+        function recargarArticulosSiPosible() {
+            const proveedor = proveedorCodigo.value.trim();
+
+            if (!proveedor) {
+                return;
+            }
+
+            limpiarPedido();
+            cargarArticulos(proveedor);
         }
 
         function calcularStockEfectivo(stock, reservado, pendiente) {
@@ -2446,32 +2665,41 @@
         coberturaDias.addEventListener("input", recalcularDatosPorCobertura);
         coberturaDias.addEventListener("change", recalcularDatosPorCobertura);
 
-        if (fechaAnalisis) {
-            inicializarFechaAnalisis();
+        if (fechaConsumoDesde) {
+            inicializarFechasConsumo();
 
-            fechaAnalisis.addEventListener("change", () => {
-                const proveedor = proveedorCodigo.value.trim();
+            fechaConsumoDesde.addEventListener("change", recargarArticulosSiPosible);
+        }
 
-                if (proveedor) {
-                    limpiarPedido();
-                    cargarArticulos(proveedor);
-                }
-            });
+        if (fechaConsumoHasta) {
+            if (!fechaConsumoHasta.value) {
+                fechaConsumoHasta.value = obtenerFechaConsumoHastaPorDefecto();
+            }
+
+            fechaConsumoHasta.addEventListener("change", recargarArticulosSiPosible);
         }
 
         const todosArticulosCheck = document.getElementById("todosArticulos");
         if (todosArticulosCheck) {
             todosArticulosCheck.addEventListener("change", () => {
-                if (fechaAnalisis) {
-                    fechaAnalisis.disabled = todosArticulosCheck.checked;
+                const deshabilitar = todosArticulosCheck.checked;
+
+                if (fechaConsumoDesde) {
+                    fechaConsumoDesde.disabled = deshabilitar;
                 }
 
-                const proveedor = proveedorCodigo.value.trim();
-
-                if (proveedor) {
-                    limpiarPedido();
-                    cargarArticulos(proveedor);
+                if (fechaConsumoHasta) {
+                    fechaConsumoHasta.disabled = deshabilitar;
                 }
+
+                recargarArticulosSiPosible();
+            });
+        }
+
+        if (almacenSelector) {
+            almacenSelector.addEventListener("change", () => {
+                actualizarAlmacenSeleccionado();
+                recargarArticulosSiPosible();
             });
         }
 
@@ -2655,6 +2883,11 @@
             const proveedor = proveedorCodigo.value.trim();
             const items = Object.values(pedido);
 
+            if (!obtenerAlmacenSeleccionado()) {
+                mostrarMensaje("Selecciona un almacén de destino antes de confirmar.", "error");
+                return;
+            }
+
             if (!proveedor) {
                 mostrarMensaje("Selecciona un proveedor antes de confirmar.", "error");
                 return;
@@ -2679,7 +2912,9 @@
         });
 
         renderPedido();
-        mostrarEstadoArticulos("Selecciona un proveedor para ver los artículos.");
+        inicializarFechasConsumo();
+        cargarAlmacenes();
+        mostrarEstadoArticulos("Selecciona un almacén y un proveedor para ver los artículos.");
     </script>
 
 </body>
