@@ -18,3 +18,5 @@ __pycache__/
 *.log
 .DS_Store
 .pytest_cache/
+~$*.xlsx
+~$*.xls
