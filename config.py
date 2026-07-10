@@ -34,6 +34,10 @@ class Config:
         "APP_HISTORIAL_FILE",
         "historial_operaciones.json",
     )
+    APP_PLAN_CONTABLE_IA_FILE = os.getenv(
+        "APP_PLAN_CONTABLE_IA_FILE",
+        "plan_contable_IA_PGC_completo.xlsx",
+    )
 
     # Compatibilidad: si no existe users.json, se usa un único usuario del .env
     APP_LOGIN_USER = os.getenv("APP_LOGIN_USER", "admin")

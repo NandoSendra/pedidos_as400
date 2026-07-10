@@ -502,6 +502,21 @@ def formatear_cuenta_para_ia(cuenta):
     if cuenta.get("palabras_clave"):
         partes.append(f"claves={cuenta['palabras_clave']}")
 
+    if cuenta.get("palabras_excluyentes"):
+        partes.append(f"excluir={cuenta['palabras_excluyentes']}")
+
+    if cuenta.get("contrapartidas_habituales"):
+        partes.append(f"contrapartidas={cuenta['contrapartidas_habituales']}")
+
+    if cuenta.get("pgc_naturaleza"):
+        partes.append(f"naturaleza={cuenta['pgc_naturaleza']}")
+
+    if cuenta.get("reglas_ia"):
+        partes.append(f"reglas={cuenta['reglas_ia']}")
+
+    if cuenta.get("centro_coste_orientativo"):
+        partes.append(f"cc={cuenta['centro_coste_orientativo']}")
+
     if cuenta.get("subtipo") == "generica":
         partes.append("genérica")
 
@@ -550,9 +565,20 @@ def texto_busqueda_cuenta(cuenta):
         cuenta.get("nombre", ""),
         cuenta.get("tercero_nombre", ""),
         cuenta.get("palabras_clave", ""),
+        cuenta.get("pgc_descripcion", ""),
+        cuenta.get("reglas_ia", ""),
     ]
 
     return _normalizar_texto(" ".join(str(parte) for parte in partes if parte))
+
+
+def _tokens_excluyentes(cuenta):
+    texto = _normalizar_texto(cuenta.get("palabras_excluyentes", ""))
+    return {
+        palabra
+        for palabra in re.split(r"[^a-z0-9]+", texto)
+        if palabra
+    }
 
 
 def puntuar_busqueda_cuenta(cuenta, tokens):
@@ -561,6 +587,7 @@ def puntuar_busqueda_cuenta(cuenta, tokens):
 
     texto_completo = texto_busqueda_cuenta(cuenta)
     claves = _normalizar_texto(cuenta.get("palabras_clave", ""))
+    excluidas = _tokens_excluyentes(cuenta)
     palabras = [
         palabra for palabra in re.split(r"[^a-z0-9]+", texto_completo) if palabra
     ]
@@ -568,6 +595,10 @@ def puntuar_busqueda_cuenta(cuenta, tokens):
 
     for token in tokens:
         if not token or token.isdigit():
+            continue
+
+        if token in excluidas:
+            puntuacion -= 30
             continue
 
         if token in palabras:

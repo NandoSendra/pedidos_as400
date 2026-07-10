@@ -6,6 +6,7 @@ from datetime import date
 import requests
 
 from asientos_ejemplos_store import list_ejemplos_por_empresa
+from as400_api import LEN_CONCEPTO_ASIENTO, normalizar_concepto_asiento
 from config import Config
 from cuenta_tipos import (
     cuenta_utilizable_ia,
@@ -125,6 +126,17 @@ TIPOS_ASIENTO = (
         ),
     },
     {
+        "id": "remesa",
+        "etiqueta": "Remesa",
+        "palabras": ("remesa", "remesas"),
+        "prefijos": {"400", "401", "410", "430", "431", "572", "570", "571"},
+        "plantilla": (
+            "Remesa bancaria: «remesa a tercero por banco» → Debe proveedor/cliente "
+            "(400/410/430) y Haber banco (572); «remesa de cliente por banco» → "
+            "Debe banco y Haber cliente."
+        ),
+    },
+    {
         "id": "gasto",
         "etiqueta": "Gasto / ticket",
         "palabras": (
@@ -176,6 +188,20 @@ TIPOS_ASIENTO = (
 )
 
 TIPOS_ASIENTO_POR_ID = {tipo["id"]: tipo for tipo in TIPOS_ASIENTO}
+
+EJEMPLOS_TIPO_ASIENTO = {
+    "confirming": "Liquidación confirming proveedor Z, 5.000 € por banco Santander.",
+    "nomina": "Nómina marzo, neto 3.500 €, SS e IRPF incluidos, pago por Santander.",
+    "factura_venta": "Factura venta cliente Mercadona, base 1.000 € + IVA 21%.",
+    "factura_compra": "Factura compra proveedor X, base 1.000 € + IVA 21%.",
+    "cobro": "Cobro a Bautista Planes por Caixa Popular 1.000 €.",
+    "pago": "Pago 150 € a JOSE PEREA por banco Santander.",
+    "remesa": "Remesa a Bautista Planes por Caixa Popular 100 €.",
+    "gasto": "Ticket gasolina 45 € pagado con tarjeta Santander.",
+    "amortizacion": "Amortización mensual maquinaria, 320 €.",
+    "provision": "Provisión por deterioro de existencias, 1.200 €.",
+    "banco": "Traspaso 500 € del Santander al Bankinter.",
+}
 
 PROVEEDORES_LOCAL = frozenset({"ollama", "local", "openai_compatible"})
 
@@ -435,6 +461,7 @@ def _extraer_nombre_tercero(descripcion):
         r"factura\s+a\s+(.+?)\s+(?:de|por|importe|base|iva|\d)",
         r"factura\s+de\s+venta\s+(?:a|al?\s+cliente\s+)?(.+?)\s+(?:de|por|importe|base|iva|\d)",
         r"venta\s+a\s+(.+?)\s+(?:de|por|importe|base|iva|\d)",
+        r"cobro\s+a\s+(.+?)\s+(?:de|por|importe|\d)",
         r"cobro\s+(?:de|del?\s+cliente\s+)?(.+?)\s+(?:de|por|importe|\d)",
         r"pago\s+a\s+(.+?)\s+(?:de|por|importe|\d)",
         r"compra\s+a\s+(.+?)\s+(?:de|por|importe|base|iva|\d)",
@@ -2121,6 +2148,245 @@ def _buscar_cuenta_banco_por_texto(cuentas, texto_banco):
     return _buscar_cuenta_banco_descripcion(cuentas, texto_banco)
 
 
+def _extraer_importe_operacion(descripcion, lineas_actuales=None):
+    importe = _extraer_base_imponible(descripcion)
+
+    if importe is not None and importe > 0:
+        return importe
+
+    texto = _texto_para_analisis(descripcion)
+    coincidencia = re.search(r"\b([\d.,]+)\s*(?:€|euros?)?\b", texto)
+
+    if coincidencia:
+        importe = _parsear_importe_locale(coincidencia.group(1))
+
+        if importe is not None and importe > 0:
+            return importe
+
+    if lineas_actuales:
+        total_debe, total_haber = _balance_lineas(lineas_actuales)
+        diferencia = round(abs(total_debe - total_haber), 2)
+
+        if diferencia > 0:
+            return diferencia
+
+        if len(lineas_actuales) == 1:
+            try:
+                importe_linea = round(float(lineas_actuales[0].get("importe", 0)), 2)
+            except (TypeError, ValueError):
+                importe_linea = 0
+
+            if importe_linea > 0:
+                return importe_linea
+
+    return None
+
+
+def _extraer_nombre_tercero_cobro(descripcion):
+    texto = _texto_para_analisis(descripcion)
+    patrones = (
+        r"\bcobro\s+a\s+(.+?)\s+por\b",
+        r"\bcobro\s+(?:de|del?\s+cliente\s+)?(.+?)\s+por\b",
+        r"\bcobramos\s+(?:de|a)\s+(.+?)\s+por\b",
+        r"\bingreso\s+(?:de|del?\s+cliente\s+)?(.+?)\s+por\b",
+    )
+
+    for patron in patrones:
+        coincidencia = re.search(patron, texto)
+
+        if not coincidencia:
+            continue
+
+        nombre = coincidencia.group(1).strip(" .,-")
+        nombre = re.sub(r"^a\s+", "", nombre)
+
+        for banco in _NOMBRES_BANCO:
+            nombre = re.sub(rf"\s+{re.escape(banco)}.*", "", nombre)
+
+        nombre = re.sub(r"\s+por\s+.*", "", nombre).strip()
+
+        if len(nombre) >= 2 and nombre not in TERCERO_STOPWORDS:
+            return nombre
+
+    nombre = _extraer_nombre_tercero(descripcion)
+
+    return re.sub(r"^a\s+", "", nombre).strip()
+
+
+def _intentar_cobro_transferencia_rapida(descripcion, cuentas, fecha, lineas_actuales=None):
+    texto = _texto_para_analisis(descripcion)
+
+    if not re.search(
+        r"\b(cobro|cobrar|cobramos|ingreso banco|recibimos|abono en cuenta)\b",
+        texto,
+    ):
+        return None
+
+    if re.search(r"\b(pago|pagar|pague|pagamos|remesa|confirming|traspaso)\b", texto):
+        return None
+
+    importe = _extraer_importe_operacion(descripcion, lineas_actuales)
+
+    if importe is None or importe <= 0:
+        return {
+            "accion": "pregunta",
+            "modo": "pregunta",
+            "explicacion": (
+                "Cobro detectado, pero falta el importe. "
+                "Indica la cantidad, por ejemplo: "
+                "«cobro a Bautista Planes por Caixa Popular 1000 €»."
+            ),
+            "pregunta": "¿Qué importe se ha cobrado?",
+            "lineas": [],
+        }
+
+    cuenta_banco = _buscar_cuenta_banco_descripcion(cuentas, descripcion)
+
+    coincidencia_banco = re.search(r"\bpor\s+(.+?)$", texto)
+
+    if not cuenta_banco and coincidencia_banco:
+        cuenta_banco = _buscar_cuenta_banco_por_texto(
+            cuentas,
+            coincidencia_banco.group(1),
+        )
+
+    if not cuenta_banco:
+        return {
+            "accion": "pregunta",
+            "modo": "pregunta",
+            "explicacion": (
+                f"Cobro de {importe:.2f} € detectado, pero no encuentro la cuenta del banco. "
+                "Indica el banco, por ejemplo: "
+                "«cobro a cliente X por Caixa Popular 1000 €»."
+            ),
+            "pregunta": "¿Qué cuenta de banco (572) debo usar?",
+            "lineas": [],
+        }
+
+    nombre_tercero = _extraer_nombre_tercero_cobro(descripcion)
+
+    if not nombre_tercero:
+        return {
+            "accion": "pregunta",
+            "modo": "pregunta",
+            "explicacion": (
+                f"Cobro de {importe:.2f} € por {_nombre_cuenta_display(cuenta_banco)}, "
+                "pero falta el cliente. Indica el nombre, por ejemplo: "
+                "«cobro a Bautista Planes por Caixa Popular 1000 €»."
+            ),
+            "pregunta": "¿De qué cliente es el cobro?",
+            "lineas": [],
+        }
+
+    cuenta_cliente = _buscar_cuenta_cliente_descripcion(cuentas, nombre_tercero)
+
+    if not cuenta_cliente:
+        cuenta_cliente = _buscar_cuenta_tercero(cuentas, nombre_tercero, lado_preferido="D")
+
+    if not cuenta_cliente:
+        return {
+            "accion": "pregunta",
+            "modo": "pregunta",
+            "explicacion": (
+                f"No encuentro cuenta de cliente para «{nombre_tercero}». "
+                "Revisa el nombre en el plan o indica el código."
+            ),
+            "pregunta": "¿Qué cuenta de cliente debo usar?",
+            "lineas": [],
+        }
+
+    nombre_cliente = (
+        cuenta_cliente.get("tercero_nombre")
+        or cuenta_cliente.get("nombre", "")
+    )[:40]
+    nombre_banco = (
+        cuenta_banco.get("tercero_nombre")
+        or cuenta_banco.get("nombre", "")
+    )[:40]
+
+    return {
+        "modo": "reemplazar",
+        "explicacion": (
+            f"Cobro de cliente: {importe:.2f} € de {nombre_cliente} "
+            f"en {nombre_banco}."
+        ),
+        "lineas": [
+            {
+                "cuenta": cuenta_banco["codigo"],
+                "fecha": fecha,
+                "importe": importe,
+                "debe_haber": "D",
+                "concepto": f"Cobro {nombre_banco}",
+            },
+            {
+                "cuenta": cuenta_cliente["codigo"],
+                "fecha": fecha,
+                "importe": importe,
+                "debe_haber": "H",
+                "concepto": f"Cobro {nombre_cliente}",
+            },
+        ],
+        "tipos_operacion": ["Cobro", "Banco"],
+    }
+
+
+def _intentar_completar_cobro_sugerencia(descripcion, lineas, cuentas, fecha):
+    if len(lineas) != 1:
+        return None
+
+    texto = _texto_para_analisis(descripcion)
+
+    if not re.search(r"\b(cobro|cobrar|cobramos|ingreso banco|recibimos)\b", texto):
+        return None
+
+    linea = lineas[0]
+    codigo = str(linea.get("cuenta", "")).strip()
+    debe_haber = str(linea.get("debe_haber", "")).strip().upper()
+
+    if debe_haber not in {"D", "DEBE"}:
+        return None
+
+    if not codigo.startswith(("572", "570", "571", "573")):
+        return None
+
+    try:
+        importe = round(float(linea.get("importe", 0)), 2)
+    except (TypeError, ValueError):
+        return None
+
+    if importe <= 0:
+        return None
+
+    nombre_tercero = _extraer_nombre_tercero_cobro(descripcion)
+
+    if not nombre_tercero:
+        return None
+
+    cuenta_cliente = _buscar_cuenta_cliente_descripcion(cuentas, nombre_tercero)
+
+    if not cuenta_cliente:
+        cuenta_cliente = _buscar_cuenta_tercero(cuentas, nombre_tercero, lado_preferido="D")
+
+    if not cuenta_cliente:
+        return None
+
+    nombre_cliente = (
+        cuenta_cliente.get("tercero_nombre")
+        or cuenta_cliente.get("nombre", "")
+    )[:40]
+
+    return [
+        linea,
+        {
+            "cuenta": cuenta_cliente["codigo"],
+            "fecha": _normalizar_fecha_sugerida(linea.get("fecha") or fecha),
+            "importe": importe,
+            "debe_haber": "H",
+            "concepto": f"Cobro {nombre_cliente}",
+        },
+    ]
+
+
 def _extraer_nombre_tercero_pago(descripcion):
     texto = _texto_para_analisis(descripcion)
     patrones = (
@@ -2166,13 +2432,7 @@ def _intentar_pago_transferencia_rapida(descripcion, cuentas, fecha):
     ):
         return None
 
-    importe = _extraer_base_imponible(descripcion)
-
-    if importe is None:
-        coincidencia = re.search(r"\b([\d.,]+)\s*(?:€|euros?)?\b", texto)
-
-        if coincidencia:
-            importe = _parsear_importe_locale(coincidencia.group(1))
+    importe = _extraer_importe_operacion(descripcion)
 
     if importe is None or importe <= 0:
         return None
@@ -2490,6 +2750,377 @@ def _intentar_asiento_confirming_rapida(descripcion, cuentas, fecha):
         ),
         "pregunta": "¿A qué proveedor corresponde el confirming?",
         "lineas": [],
+    }
+
+
+def _extraer_nombre_tercero_remesa(descripcion):
+    texto = _texto_para_analisis(descripcion)
+    patrones = (
+        r"\bremesa\s+a\s+(.+?)\s+por\b",
+        r"\bremesa\s+de\s+(.+?)\s+por\b",
+        r"\bremesa\s+(?:proveedor|cliente|acreedor)\s+(.+?)\s+por\b",
+    )
+
+    for patron in patrones:
+        coincidencia = re.search(patron, texto)
+
+        if not coincidencia:
+            continue
+
+        nombre = coincidencia.group(1).strip(" .,-")
+        nombre = re.sub(r"^a\s+", "", nombre)
+
+        for banco in _NOMBRES_BANCO:
+            nombre = re.sub(rf"\s+{re.escape(banco)}.*", "", nombre)
+
+        nombre = re.sub(r"\s+por\s+.*", "", nombre).strip()
+
+        if len(nombre) >= 2 and nombre not in TERCERO_STOPWORDS:
+            return nombre
+
+    return ""
+
+
+def _intentar_remesa_transferencia_rapida(descripcion, cuentas, fecha):
+    """
+    Frases tipo:
+    - "Remesa a Bautista Planes por Caixa Popular por 100 euros"
+    - "Remesa de cliente X por banco Y 500 €"
+    """
+    texto = _texto_para_analisis(descripcion)
+
+    if not re.search(r"\b(remesa|remesas)\b", texto):
+        return None
+
+    if re.search(r"\b(liquida|liquidar|liquidacion|liquidación)\b", texto):
+        return None
+
+    es_remesa_de = bool(re.search(r"\bremesa\s+de\b", texto))
+    es_remesa_a = bool(
+        re.search(r"\bremesa\s+a\b", texto)
+        or re.search(r"\bremesa\s+(?:proveedor|cliente|acreedor)\b", texto)
+    )
+
+    if not es_remesa_de and not es_remesa_a:
+        return None
+
+    importe = _extraer_importe_operacion(descripcion)
+
+    if importe is None or importe <= 0:
+        return {
+            "accion": "pregunta",
+            "modo": "pregunta",
+            "explicacion": (
+                "Remesa detectada, pero falta el importe. "
+                "Indica la cantidad, por ejemplo: "
+                "«Remesa a Bautista Planes por Caixa Popular 100 €»."
+            ),
+            "pregunta": "¿Qué importe tiene la remesa?",
+            "lineas": [],
+        }
+
+    cuenta_banco = _buscar_cuenta_banco_descripcion(cuentas, descripcion)
+
+    if not cuenta_banco:
+        coincidencia_banco = re.search(
+            r"\bpor\s+(.+?)(?:\s+por\s+[\d.,]+(?:\s*(?:€|euros?))?|\s*$)",
+            texto,
+        )
+
+        if coincidencia_banco:
+            cuenta_banco = _buscar_cuenta_banco_por_texto(
+                cuentas,
+                coincidencia_banco.group(1),
+            )
+
+    if not cuenta_banco:
+        return {
+            "accion": "pregunta",
+            "modo": "pregunta",
+            "explicacion": (
+                f"Remesa de {importe:.2f} € detectada, pero no encuentro la cuenta del banco. "
+                "Indica el banco tal como aparece en el plan, por ejemplo: "
+                "«Remesa a proveedor X por Caixa Popular 100 €»."
+            ),
+            "pregunta": "¿Qué cuenta de banco (572) debo usar?",
+            "lineas": [],
+        }
+
+    nombre_tercero = _extraer_nombre_tercero_remesa(descripcion)
+
+    if not nombre_tercero:
+        nombre_tercero = _extraer_nombre_tercero(descripcion)
+
+    if es_remesa_de:
+        if not nombre_tercero:
+            return {
+                "accion": "pregunta",
+                "modo": "pregunta",
+                "explicacion": (
+                    f"Remesa de cobro por {importe:.2f} € vía "
+                    f"{_nombre_cuenta_display(cuenta_banco)}, pero falta el cliente. "
+                    "Indica el nombre, por ejemplo: "
+                    "«Remesa de Bautista Planes por Caixa Popular 100 €»."
+                ),
+                "pregunta": "¿De qué cliente es la remesa?",
+                "lineas": [],
+            }
+
+        cuenta_cliente = _buscar_cuenta_cliente_descripcion(cuentas, nombre_tercero)
+
+        if not cuenta_cliente:
+            cuenta_cliente = _buscar_cuenta_tercero(
+                cuentas,
+                nombre_tercero,
+                lado_preferido="D",
+            )
+
+        if not cuenta_cliente:
+            return {
+                "accion": "pregunta",
+                "modo": "pregunta",
+                "explicacion": (
+                    f"No encuentro cuenta de cliente para «{nombre_tercero}». "
+                    "Revisa el nombre en el plan o indica el código."
+                ),
+                "pregunta": "¿Qué cuenta de cliente debo usar?",
+                "lineas": [],
+            }
+
+        nombre_cliente = (
+            cuenta_cliente.get("tercero_nombre")
+            or cuenta_cliente.get("nombre", "")
+        )[:40]
+        nombre_banco = (
+            cuenta_banco.get("tercero_nombre")
+            or cuenta_banco.get("nombre", "")
+        )[:40]
+
+        return {
+            "modo": "reemplazar",
+            "explicacion": (
+                f"Remesa de cobro: {importe:.2f} € de {nombre_cliente} "
+                f"en {nombre_banco}."
+            ),
+            "lineas": [
+                {
+                    "cuenta": cuenta_banco["codigo"],
+                    "fecha": fecha,
+                    "importe": importe,
+                    "debe_haber": "D",
+                    "concepto": f"Remesa {nombre_banco}",
+                },
+                {
+                    "cuenta": cuenta_cliente["codigo"],
+                    "fecha": fecha,
+                    "importe": importe,
+                    "debe_haber": "H",
+                    "concepto": f"Remesa {nombre_cliente}",
+                },
+            ],
+            "tipos_operacion": ["Remesa", "Cobro", "Banco"],
+        }
+
+    if not nombre_tercero:
+        return {
+            "accion": "pregunta",
+            "modo": "pregunta",
+            "explicacion": (
+                f"Remesa de pago por {importe:.2f} € vía "
+                f"{_nombre_cuenta_display(cuenta_banco)}, pero falta el tercero. "
+                "Indica proveedor o cliente, por ejemplo: "
+                "«Remesa a Bautista Planes por Caixa Popular 100 €»."
+            ),
+            "pregunta": "¿A qué tercero va la remesa?",
+            "lineas": [],
+        }
+
+    tercero_forzado = None
+
+    if re.search(r"\bcliente\b", texto):
+        tercero_forzado = "cliente"
+    elif re.search(r"\bproveedor\b|\bacreedor\b", texto):
+        tercero_forzado = "proveedor"
+
+    cuenta_proveedor = _buscar_cuenta_proveedor_descripcion(cuentas, nombre_tercero)
+    cuenta_cliente = _buscar_cuenta_cliente_descripcion(cuentas, nombre_tercero)
+
+    if tercero_forzado == "proveedor":
+        cuenta_tercero = cuenta_proveedor
+    elif tercero_forzado == "cliente":
+        cuenta_tercero = cuenta_cliente
+    else:
+        if (
+            cuenta_proveedor
+            and cuenta_cliente
+            and cuenta_proveedor.get("codigo") != cuenta_cliente.get("codigo")
+        ):
+            opciones = "\n".join([
+                f"- {_nombre_cuenta_display(cuenta_proveedor)} (proveedor)",
+                f"- {_nombre_cuenta_display(cuenta_cliente)} (cliente)",
+            ])
+            return {
+                "accion": "pregunta",
+                "modo": "pregunta",
+                "explicacion": (
+                    f"Hay dos cuentas posibles para «{nombre_tercero}»:\n"
+                    f"{opciones}\n"
+                    "Indica si es cliente o proveedor."
+                ),
+                "pregunta": "¿Es cliente o proveedor?",
+                "lineas": [],
+            }
+
+        cuenta_tercero = cuenta_proveedor or cuenta_cliente
+
+    if not cuenta_tercero:
+        return {
+            "accion": "pregunta",
+            "modo": "pregunta",
+            "explicacion": (
+                f"No encuentro cuenta para «{nombre_tercero}». "
+                "Revisa el nombre en el plan o indica el código."
+            ),
+            "pregunta": "¿Qué cuenta de tercero debo usar?",
+            "lineas": [],
+        }
+
+    nombre_tercero_cuenta = (
+        cuenta_tercero.get("tercero_nombre")
+        or cuenta_tercero.get("nombre", "")
+    )[:40]
+    nombre_banco = (
+        cuenta_banco.get("tercero_nombre")
+        or cuenta_banco.get("nombre", "")
+    )[:40]
+
+    return {
+        "modo": "reemplazar",
+        "explicacion": (
+            f"Remesa de pago: {importe:.2f} € a {nombre_tercero_cuenta} "
+            f"vía {nombre_banco}."
+        ),
+        "lineas": [
+            {
+                "cuenta": cuenta_tercero["codigo"],
+                "fecha": fecha,
+                "importe": importe,
+                "debe_haber": "D",
+                "concepto": f"Remesa {nombre_tercero_cuenta}",
+            },
+            {
+                "cuenta": cuenta_banco["codigo"],
+                "fecha": fecha,
+                "importe": importe,
+                "debe_haber": "H",
+                "concepto": f"Remesa {nombre_banco}",
+            },
+        ],
+        "tipos_operacion": ["Remesa", "Pago", "Banco"],
+    }
+
+
+def _puntuar_ejemplo_similitud(descripcion, ejemplo, tipos_operacion=None):
+    tokens = set(_tokens_descripcion(descripcion))
+    descripcion_ejemplo = str(ejemplo.get("descripcion", ""))
+    tokens_ejemplo = set(_tokens_descripcion(descripcion_ejemplo))
+    tipos = set(tipos_operacion or _detectar_tipo_operacion(descripcion))
+    score = len(tokens & tokens_ejemplo) * 12
+
+    for token in tokens:
+        if token in _normalizar_texto(descripcion_ejemplo):
+            score += 4
+
+    tipos_ejemplo = set(ejemplo.get("tipos_operacion") or [])
+    score += len(tipos & tipos_ejemplo) * 18
+
+    for cuenta in ejemplo.get("lineas", []):
+        nombre_cuenta = _normalizar_texto(cuenta.get("concepto", ""))
+
+        for token in tokens:
+            if token in nombre_cuenta:
+                score += 3
+
+    return score
+
+
+def _intentar_asiento_desde_ejemplo_aprendido(
+    descripcion,
+    cuentas,
+    fecha,
+    empresa_id,
+    tipos_operacion=None,
+):
+    if not empresa_id:
+        return None
+
+    ejemplos = _seleccionar_ejemplos_similares(
+        descripcion,
+        empresa_id,
+        limite=1,
+        tipos_operacion=tipos_operacion,
+    )
+
+    if not ejemplos:
+        return None
+
+    ejemplo = ejemplos[0]
+    score = _puntuar_ejemplo_similitud(
+        descripcion,
+        ejemplo,
+        tipos_operacion=tipos_operacion,
+    )
+
+    if score < 36:
+        return None
+
+    importe = _extraer_importe_operacion(descripcion)
+
+    if importe is None or importe <= 0:
+        return None
+
+    lineas_ejemplo = ejemplo.get("lineas", [])
+
+    if len(lineas_ejemplo) < 2:
+        return None
+
+    importes_ejemplo = []
+
+    for linea in lineas_ejemplo:
+        try:
+            importes_ejemplo.append(round(float(linea.get("importe", 0)), 2))
+        except (TypeError, ValueError):
+            return None
+
+    if not importes_ejemplo or not all(importe_linea > 0 for importe_linea in importes_ejemplo):
+        return None
+
+    if len(set(importes_ejemplo)) != 1:
+        return None
+
+    lineas = []
+
+    for linea in lineas_ejemplo:
+        concepto = str(linea.get("concepto", "")).strip()
+
+        if not concepto:
+            concepto = str(ejemplo.get("descripcion", "")).strip()[:50] or "Apunte"
+
+        lineas.append({
+            "cuenta": linea["cuenta"],
+            "fecha": fecha,
+            "importe": round(importe, 2),
+            "debe_haber": linea["debe_haber"],
+            "concepto": concepto,
+        })
+
+    return {
+        "modo": "reemplazar",
+        "explicacion": (
+            f"Asiento según ejemplo aprendido: {ejemplo.get('descripcion', '')}"
+        ),
+        "lineas": lineas,
+        "tipos_operacion": ejemplo.get("tipos_operacion", []),
     }
 
 
@@ -2934,37 +3565,20 @@ def _resumen_fiscal_prompt(descripcion, cuentas, tipos_operacion):
     return "\n".join(lineas)
 
 
-def _seleccionar_ejemplos_similares(descripcion, empresa_id, limite=5):
+def _seleccionar_ejemplos_similares(descripcion, empresa_id, limite=5, tipos_operacion=None):
     ejemplos = list_ejemplos_por_empresa(empresa_id)
 
     if not ejemplos:
         return []
 
-    tokens = set(_tokens_descripcion(descripcion))
-    tipos = set(_detectar_tipo_operacion(descripcion))
     puntuadas = []
 
     for ejemplo in ejemplos:
-        score = 0
-        descripcion_ejemplo = str(ejemplo.get("descripcion", ""))
-        tokens_ejemplo = set(_tokens_descripcion(descripcion_ejemplo))
-
-        score += len(tokens & tokens_ejemplo) * 12
-
-        for token in tokens:
-            if token in _normalizar_texto(descripcion_ejemplo):
-                score += 4
-
-        tipos_ejemplo = set(ejemplo.get("tipos_operacion") or [])
-
-        score += len(tipos & tipos_ejemplo) * 18
-
-        for cuenta in ejemplo.get("lineas", []):
-            nombre_cuenta = _normalizar_texto(cuenta.get("concepto", ""))
-
-            for token in tokens:
-                if token in nombre_cuenta:
-                    score += 3
+        score = _puntuar_ejemplo_similitud(
+            descripcion,
+            ejemplo,
+            tipos_operacion=tipos_operacion,
+        )
 
         if score > 0:
             puntuadas.append((score, ejemplo))
@@ -3001,6 +3615,58 @@ def _formatear_ejemplos_prompt(ejemplos):
             )
 
     return "\n".join(lineas)
+
+
+def listar_tipos_asiento():
+    return [
+        {
+            "id": tipo["id"],
+            "etiqueta": tipo["etiqueta"],
+            "ejemplo": EJEMPLOS_TIPO_ASIENTO.get(tipo["id"], ""),
+        }
+        for tipo in TIPOS_ASIENTO
+    ]
+
+
+def normalizar_tipo_asiento_solicitud(valor):
+    if valor is None:
+        return None
+
+    tipo = str(valor).strip()
+
+    if not tipo or tipo.lower() in {"none", "null"}:
+        return None
+
+    return tipo
+
+
+def _resolver_tipos_operacion(descripcion, tipo_asiento=None):
+    detectados = _detectar_tipo_operacion(descripcion)
+    tipo_asiento = str(tipo_asiento or "").strip()
+
+    if not tipo_asiento or tipo_asiento not in TIPOS_ASIENTO_POR_ID:
+        return detectados
+
+    if tipo_asiento in detectados:
+        return [tipo_asiento] + [
+            tipo_id for tipo_id in detectados if tipo_id != tipo_asiento
+        ]
+
+    return [tipo_asiento] + [
+        tipo_id for tipo_id in detectados if tipo_id != "general"
+    ]
+
+
+def _longitud_minima_descripcion(descripcion, tipo_asiento=None):
+    texto = _texto_para_analisis(descripcion)
+
+    if _es_solicitud_cuadrar(texto) or _es_solicitud_eliminar_asiento(texto):
+        return 0
+
+    if str(tipo_asiento or "").strip() in TIPOS_ASIENTO_POR_ID:
+        return 5
+
+    return 10
 
 
 def _detectar_tipo_operacion(descripcion):
@@ -3126,6 +3792,23 @@ def _puntuar_cuenta(cuenta, tokens, descripcion_norm, tipos_operacion):
         if palabras_clave and token in palabras_clave:
             score += 14
 
+    excluidas = {
+        palabra
+        for palabra in re.split(
+            r"[^a-z0-9]+",
+            _normalizar_texto(cuenta.get("palabras_excluyentes", "")),
+        )
+        if palabra
+    }
+
+    for token in tokens:
+        if token in excluidas:
+            score -= 35
+
+    for termino in excluidas:
+        if termino and termino in descripcion_norm:
+            score -= 20
+
     coincidencias = sum(
         1 for token in tokens
         if token in nombre
@@ -3241,10 +3924,15 @@ def _puntuar_cuenta(cuenta, tokens, descripcion_norm, tipos_operacion):
     return score
 
 
-def _seleccionar_cuentas_relevantes(descripcion, cuentas, max_cuentas=120):
+def _seleccionar_cuentas_relevantes(
+    descripcion,
+    cuentas,
+    max_cuentas=120,
+    tipos_operacion=None,
+):
     tokens = _tokens_descripcion(descripcion)
     descripcion_norm = _normalizar_texto(descripcion)
-    tipos_operacion = _detectar_tipo_operacion(descripcion)
+    tipos_operacion = tipos_operacion or _detectar_tipo_operacion(descripcion)
 
     if not tokens:
         return cuentas[:max_cuentas], tipos_operacion, []
@@ -3323,12 +4011,15 @@ def _reglas_sistema():
         "Eres un contable experto en España.",
         "Conoces asientos de: " + tipos_conocidos + ".",
         "Propón asientos cuadrados (debe = haber) usando EXCLUSIVAMENTE cuentas del listado.",
-        "Cada cuenta del listado incluye metadatos del ERP: tipo, IVA %, rol en factura "
-        "(base/cuota/total), Debe/Haber habitual, masas PyG/Balance y palabras clave. "
+        "Cada cuenta del listado incluye metadatos del ERP y del plan contable IA: "
+        "tipo, IVA %, rol en factura (base/cuota/total), Debe/Haber habitual, "
+        "masas PyG/Balance, palabras clave, contrapartidas habituales y reglas. "
+        "Respeta las palabras excluyentes (excluir=...) si aparecen en la operación. "
         "Usa esos metadatos para elegir la cuenta correcta en cada línea del asiento. "
         "Prioriza cuentas cuyo IVA % coincida con el de la operación. "
         "Evita cuentas genéricas o marcadas como INACTIVA.",
         "Los códigos de cuenta son exactos, sin inventar ni acortar.",
+        f"Cada concepto de línea debe tener como máximo {LEN_CONCEPTO_ASIENTO} caracteres.",
         "En el JSON, el campo cuenta debe contener SOLO el código numérico "
         "(ej. 4300048018), nunca el nombre ni los metadatos del listado.",
         "Si el usuario menciona un tercero (persona o empresa), elige la cuenta cuyo nombre "
@@ -3430,7 +4121,19 @@ def _validar_lineas_sugeridas(lineas, cuentas, fecha, requiere_cuadre=True):
             )
 
         if not concepto:
-            raise AIAsientoError(f"Falta concepto en la línea {indice} de la IA")
+            for cuenta_plan in cuentas:
+                if str(cuenta_plan.get("codigo")).strip() == cuenta:
+                    concepto = (
+                        cuenta_plan.get("tercero_nombre")
+                        or cuenta_plan.get("nombre", "")
+                        or ""
+                    ).strip()[:50]
+                    break
+
+            if not concepto:
+                concepto = f"Línea {indice}"
+
+        concepto = normalizar_concepto_asiento(concepto, indice=indice)
 
         if importe <= 0:
             raise AIAsientoError(
@@ -3466,6 +4169,7 @@ def sugerir_asiento_contable(
     fecha=None,
     lineas_actuales=None,
     empresa_id=None,
+    tipo_asiento=None,
 ):
     if not ai_asiento_disponible():
         raise AIAsientoError(
@@ -3475,11 +4179,14 @@ def sugerir_asiento_contable(
         )
 
     descripcion = str(descripcion or "").strip()
+    tipo_asiento = normalizar_tipo_asiento_solicitud(tipo_asiento)
 
-    if len(descripcion) < 10 and not any(
-        detector(_texto_para_analisis(descripcion))
-        for detector in (_es_solicitud_cuadrar, _es_solicitud_eliminar_asiento)
-    ):
+    if tipo_asiento and tipo_asiento not in TIPOS_ASIENTO_POR_ID:
+        raise AIAsientoError("El tipo de asiento indicado no es válido")
+
+    minimo_descripcion = _longitud_minima_descripcion(descripcion, tipo_asiento)
+
+    if len(descripcion) < minimo_descripcion:
         raise AIAsientoError("Describe la operación con un poco más de detalle")
 
     if not cuentas:
@@ -3488,6 +4195,7 @@ def sugerir_asiento_contable(
     fecha_asiento = _normalizar_fecha_sugerida(fecha)
     lineas_actuales = _normalizar_lineas_actuales(lineas_actuales, fecha_asiento)
     modo_edicion = _detectar_modo_edicion(descripcion, lineas_actuales)
+    tipos_operacion = _resolver_tipos_operacion(descripcion, tipo_asiento or None)
 
     rapida_vaciar = _intentar_eliminar_asiento_rapida(
         descripcion,
@@ -3671,6 +4379,40 @@ def sugerir_asiento_contable(
                 "tipos_operacion": rapida_traspaso.get("tipos_operacion", ["Edición"]),
             }
 
+        rapida_cobro = _intentar_cobro_transferencia_rapida(
+            descripcion,
+            cuentas,
+            fecha_asiento,
+            lineas_actuales=lineas_actuales,
+        )
+
+        if rapida_cobro:
+            if rapida_cobro.get("accion") in {"pregunta", "info"}:
+                return {
+                    "success": True,
+                    "modo": rapida_cobro["modo"],
+                    "explicacion": rapida_cobro["explicacion"],
+                    "pregunta": rapida_cobro.get("pregunta", ""),
+                    "lineas": [],
+                    "cuentas_candidatas": 0,
+                    "tipos_operacion": rapida_cobro.get("tipos_operacion", ["Cobro"]),
+                }
+
+            lineas = _validar_lineas_sugeridas(
+                rapida_cobro["lineas"],
+                cuentas,
+                fecha_asiento,
+            )
+
+            return {
+                "success": True,
+                "modo": rapida_cobro.get("modo", "reemplazar"),
+                "explicacion": rapida_cobro["explicacion"],
+                "lineas": lineas,
+                "cuentas_candidatas": 0,
+                "tipos_operacion": rapida_cobro.get("tipos_operacion", ["Cobro", "Banco"]),
+            }
+
         rapida_pago = _intentar_pago_transferencia_rapida(
             descripcion,
             cuentas,
@@ -3702,6 +4444,39 @@ def sugerir_asiento_contable(
                 "lineas": lineas,
                 "cuentas_candidatas": 0,
                 "tipos_operacion": rapida_pago.get("tipos_operacion", ["Pago", "Banco"]),
+            }
+
+        rapida_remesa = _intentar_remesa_transferencia_rapida(
+            descripcion,
+            cuentas,
+            fecha_asiento,
+        )
+
+        if rapida_remesa:
+            if rapida_remesa.get("accion") in {"pregunta", "info"}:
+                return {
+                    "success": True,
+                    "modo": rapida_remesa["modo"],
+                    "explicacion": rapida_remesa["explicacion"],
+                    "pregunta": rapida_remesa.get("pregunta", ""),
+                    "lineas": [],
+                    "cuentas_candidatas": 0,
+                    "tipos_operacion": rapida_remesa.get("tipos_operacion", ["Remesa"]),
+                }
+
+            lineas = _validar_lineas_sugeridas(
+                rapida_remesa["lineas"],
+                cuentas,
+                fecha_asiento,
+            )
+
+            return {
+                "success": True,
+                "modo": rapida_remesa.get("modo", "reemplazar"),
+                "explicacion": rapida_remesa["explicacion"],
+                "lineas": lineas,
+                "cuentas_candidatas": 0,
+                "tipos_operacion": rapida_remesa.get("tipos_operacion", ["Remesa", "Banco"]),
             }
 
         rapida_remesa = _intentar_liquidar_remesa_rapida(
@@ -3768,6 +4543,30 @@ def sugerir_asiento_contable(
                 "tipos_operacion": rapida_factura.get("tipos_operacion", []),
             }
 
+        rapida_ejemplo = _intentar_asiento_desde_ejemplo_aprendido(
+            descripcion,
+            cuentas,
+            fecha_asiento,
+            empresa_id,
+            tipos_operacion=tipos_operacion,
+        )
+
+        if rapida_ejemplo:
+            lineas = _validar_lineas_sugeridas(
+                rapida_ejemplo["lineas"],
+                cuentas,
+                fecha_asiento,
+            )
+
+            return {
+                "success": True,
+                "modo": rapida_ejemplo.get("modo", "reemplazar"),
+                "explicacion": rapida_ejemplo["explicacion"],
+                "lineas": lineas,
+                "cuentas_candidatas": 0,
+                "tipos_operacion": rapida_ejemplo.get("tipos_operacion", ["General"]),
+            }
+
     descripcion_busqueda = descripcion
 
     if lineas_actuales:
@@ -3782,6 +4581,7 @@ def sugerir_asiento_contable(
     cuentas_ia, tipos_operacion, tokens = _seleccionar_cuentas_relevantes(
         descripcion_busqueda,
         cuentas,
+        tipos_operacion=tipos_operacion,
     )
     plan_cuentas = _formatear_plan_cuentas(cuentas_ia)
     guia_tipos = _guia_tipos_asiento(tipos_operacion)
@@ -3805,10 +4605,20 @@ def sugerir_asiento_contable(
             "nuevas que haya que incorporar. No hace falta que el resultado parcial cuadre."
         )
 
+    instruccion_tipo = ""
+
+    if tipo_asiento in TIPOS_ASIENTO_POR_ID:
+        instruccion_tipo = (
+            f"\nTIPO INDICADO POR EL USUARIO: "
+            f"{TIPOS_ASIENTO_POR_ID[tipo_asiento]['etiqueta']}. "
+            "Prioriza la plantilla de ese tipo aunque el texto sea breve."
+        )
+
     ejemplos_similares = _seleccionar_ejemplos_similares(
         descripcion,
         empresa_id or "default",
         limite=5,
+        tipos_operacion=tipos_operacion,
     )
     ejemplos_prompt = _formatear_ejemplos_prompt(ejemplos_similares)
 
@@ -3818,6 +4628,7 @@ def sugerir_asiento_contable(
 Fecha del asiento: {fecha_asiento}
 Tipos detectados: {", ".join(tipos_etiquetas)}
 Palabras clave detectadas: {", ".join(tokens) if tokens else "(ninguna)"}
+{instruccion_tipo}
 {lineas_actuales_prompt}
 {instruccion_edicion}
 {ejemplos_prompt}
@@ -3851,8 +4662,19 @@ Debes elegir SOLO cuentas de este listado, con el código exacto:
     else:
         modo_resultado = "añadir"
 
+    lineas_raw = resultado.get("lineas", [])
+    lineas_completadas = _intentar_completar_cobro_sugerencia(
+        descripcion,
+        lineas_raw,
+        cuentas,
+        fecha_asiento,
+    )
+
+    if lineas_completadas:
+        lineas_raw = lineas_completadas
+
     lineas = _validar_lineas_sugeridas(
-        resultado.get("lineas", []),
+        lineas_raw,
         cuentas,
         fecha_asiento,
         requiere_cuadre=modo_resultado != "añadir",

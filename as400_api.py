@@ -755,20 +755,57 @@ def normalizar_debe_haber(valor):
     raise AS400ApiError("Debe/Haber debe ser D o H")
 
 
+LEN_CUENTA_ASIENTO = 10
+LEN_CONCEPTO_ASIENTO = 50
+LEN_USUARIO_ASIENTO = 20
+
+
+def normalizar_cuenta_asiento_linea(valor):
+    texto = re.sub(r"\D", "", str(valor or "").strip())
+
+    if not texto:
+        raise AS400ApiError("Falta cuenta en una línea del asiento")
+
+    if len(texto) > LEN_CUENTA_ASIENTO:
+        raise AS400ApiError(
+            f"La cuenta {texto} supera los {LEN_CUENTA_ASIENTO} dígitos del AS/400"
+        )
+
+    return texto.zfill(LEN_CUENTA_ASIENTO)
+
+
+def normalizar_concepto_asiento(valor, indice=None):
+    concepto = re.sub(r"\s+", " ", str(valor or "").strip())
+
+    if not concepto:
+        if indice is not None:
+            concepto = f"Línea {indice}"
+        else:
+            raise AS400ApiError("Falta concepto en una línea del asiento")
+
+    if len(concepto) > LEN_CONCEPTO_ASIENTO:
+        concepto = concepto[:LEN_CONCEPTO_ASIENTO].rstrip()
+
+    return concepto
+
+
 def crear_asiento_contable(empresa, usuario, lineas):
     lineas_payload = []
 
-    for linea in lineas:
+    for indice, linea in enumerate(lineas, start=1):
         lineas_payload.append({
-            "cuenta": str(linea["cuenta"]).strip(),
+            "cuenta": normalizar_cuenta_asiento_linea(linea["cuenta"]),
             "fecha": normalizar_fecha_asiento(linea["fecha"]),
             "importe": float(linea["importe"]),
             "debe_haber": normalizar_debe_haber(linea["debe_haber"]),
-            "concepto": str(linea["concepto"]).strip(),
+            "concepto": normalizar_concepto_asiento(
+                linea.get("concepto", ""),
+                indice=indice,
+            ),
         })
 
     payload = {
-        "usuario": str(usuario or "").strip()[:20],
+        "usuario": str(usuario or "").strip()[:LEN_USUARIO_ASIENTO],
         "numLineasIn": len(lineas_payload),
         "lineas": lineas_payload,
     }

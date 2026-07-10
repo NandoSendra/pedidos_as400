@@ -37,9 +37,12 @@ from ai_asiento import (
     ai_asiento_disponible,
     ai_asiento_info,
     intentar_asiento_norma43_rapida,
+    listar_tipos_asiento,
+    normalizar_tipo_asiento_solicitud,
     sugerir_asiento_contable,
 )
 from csv_asiento import CSVAsientoError, parsear_archivo_importacion
+from pdf_asiento import PDFAsientoError, es_fichero_pdf, parsear_pdf_para_ia
 from as400_api import (
     AS400ApiError,
     crear_asiento_contable,
@@ -51,6 +54,7 @@ from as400_api import (
     obtener_stocks,
     normalizar_fecha_asiento,
     normalizar_debe_haber,
+    normalizar_concepto_asiento,
 )
 from auth import admin_required, init_auth, safe_next_url
 from empresa_session import clear_empresa_session, ensure_empresa_session, set_empresa_session
@@ -606,16 +610,13 @@ def _normalizar_lineas_asiento_para_confirmar(data, empresa):
             cuentas_plan,
             cuentas_por_codigo,
         )
-        concepto = str(linea.get("concepto", "")).strip()
+        concepto = normalizar_concepto_asiento(linea.get("concepto", ""), indice=indice)
         fecha = normalizar_fecha_asiento(linea.get("fecha", ""))
         importe = float(linea.get("importe", 0))
         debe_haber = normalizar_debe_haber(linea.get("debe_haber", ""))
 
         if not cuenta:
             raise ValueError(f"La línea {indice} no tiene una cuenta contable válida en el plan")
-
-        if not concepto:
-            raise ValueError(f"La línea {indice} no tiene concepto")
 
         if importe <= 0:
             raise ValueError(f"El importe de la línea {indice} debe ser mayor que 0 €")
@@ -1273,6 +1274,7 @@ def asiento():
         ai_disponible=ai_asiento_disponible(),
         ai_info=ai_asiento_info() if ai_asiento_disponible() else None,
         num_ejemplos_ia=num_ejemplos_ia,
+        tipos_asiento=listar_tipos_asiento() if ai_asiento_disponible() else [],
         error=error,
         **contexto,
     )
@@ -1290,6 +1292,7 @@ def api_asiento_sugerir():
     descripcion = str(data.get("descripcion", "")).strip()
     fecha = str(data.get("fecha", "")).strip() or None
     lineas_actuales = data.get("lineas_actuales", [])
+    tipo_asiento = normalizar_tipo_asiento_solicitud(data.get("tipo_asiento"))
 
     empresa = ensure_empresa_session(session.get("usuario"))
 
@@ -1310,6 +1313,7 @@ def api_asiento_sugerir():
             fecha=fecha,
             lineas_actuales=lineas_actuales,
             empresa_id=empresa.get("id"),
+            tipo_asiento=tipo_asiento,
         )
         return jsonify(resultado)
     except AIAsientoError as error:
@@ -1378,6 +1382,7 @@ def api_asiento_importar_csv():
         ".csv", ".tsv", ".txt", ".dat", ".tab",
         ".xlsx", ".xlsm", ".xls",
         ".n43", ".c43", ".csb", ".43",
+        ".pdf",
     )
 
     if not nombre_archivo.endswith(extensiones_validas):
@@ -1385,31 +1390,50 @@ def api_asiento_importar_csv():
             "success": False,
             "mensaje": (
                 "Formato no soportado. Usa un fichero encolumnado "
-                "(CSV, Excel, TSV), Norma 43 (.n43, .43) o similar."
+                "(CSV, Excel, TSV), Norma 43 (.n43, .43), PDF de factura "
+                "o documento similar."
             ),
         }), 400
 
     modo = str(request.form.get("modo", "lineas")).strip().lower()
+
+    if es_fichero_pdf(archivo.filename) and modo != "ia":
+        return jsonify({
+            "success": False,
+            "mensaje": (
+                "Los PDF solo se analizan con IA. Pulsa «Analizar con IA» "
+                "y, si quieres, indica el tipo de asiento en el desplegable."
+            ),
+        }), 400
     descripcion_extra = str(request.form.get("descripcion", "")).strip()
     fecha = str(request.form.get("fecha", "")).strip() or None
     cuenta_banco = str(request.form.get("cuenta_banco", "")).strip() or None
+    tipo_asiento = normalizar_tipo_asiento_solicitud(request.form.get("tipo_asiento"))
 
     try:
         contenido = archivo.read()
         cuentas_plan = None
 
-        if modo == "lineas" or cuenta_banco:
-            cuentas_plan = get_cuentas_contables(
-                empresa,
-                refresh=bool(request.args.get("refresh")),
+        if es_fichero_pdf(archivo.filename):
+            resultado = parsear_pdf_para_ia(
+                contenido,
+                filename=archivo.filename,
+                tipo_asiento=tipo_asiento,
+                descripcion_extra=descripcion_extra,
             )
+        else:
+            if modo == "lineas" or cuenta_banco:
+                cuentas_plan = get_cuentas_contables(
+                    empresa,
+                    refresh=bool(request.args.get("refresh")),
+                )
 
-        resultado = parsear_archivo_importacion(
-            contenido,
-            filename=archivo.filename,
-            cuenta_banco=cuenta_banco,
-            cuentas_plan=cuentas_plan,
-        )
+            resultado = parsear_archivo_importacion(
+                contenido,
+                filename=archivo.filename,
+                cuenta_banco=cuenta_banco,
+                cuentas_plan=cuentas_plan,
+            )
 
         if modo == "ia":
             if not ai_asiento_disponible():
@@ -1420,12 +1444,14 @@ def api_asiento_importar_csv():
 
             descripcion = descripcion_extra
 
-            if resultado["resumen"]:
+            if resultado.get("resumen"):
                 descripcion = (
                     f"{descripcion_extra}\n\n{resultado['resumen']}".strip()
                     if descripcion_extra
                     else resultado["resumen"]
                 )
+
+            tipo_efectivo = tipo_asiento or resultado.get("tipo_sugerido")
 
             if len(descripcion) < 10:
                 return jsonify({
@@ -1474,6 +1500,8 @@ def api_asiento_importar_csv():
                 descripcion,
                 cuentas,
                 fecha=fecha,
+                empresa_id=empresa.get("id"),
+                tipo_asiento=tipo_efectivo,
             )
 
             return jsonify({
@@ -1527,6 +1555,11 @@ def api_asiento_importar_csv():
             "cuenta_banco": resultado.get("cuenta_banco"),
             "diagnostico": resultado.get("diagnostico"),
         })
+    except PDFAsientoError as error:
+        return jsonify({
+            "success": False,
+            "mensaje": str(error),
+        }), 400
     except CSVAsientoError as error:
         return jsonify({
             "success": False,

@@ -4,10 +4,15 @@ from threading import Lock
 
 from as400_api import obtener_cuentas
 from cuenta_tipos import cuenta_coincide_busqueda
+from plan_contable_ia import consolidar_cuentas_con_plan_ia, get_plan_contable_info
 
 _lock = Lock()
 _store = {}
 TTL_SECONDS = 3600
+
+
+def _clave_orden_cuenta(cuenta):
+    return str(cuenta.get("codigo") or "")
 
 
 def get_cuentas_contables(empresa, refresh=False):
@@ -21,7 +26,10 @@ def get_cuentas_contables(empresa, refresh=False):
             if entrada and ahora - entrada["loaded_at"] < TTL_SECONDS:
                 return list(entrada["cuentas"])
 
-    cuentas = obtener_cuentas(empresa)
+    cuentas = sorted(
+        consolidar_cuentas_con_plan_ia(obtener_cuentas(empresa)),
+        key=_clave_orden_cuenta,
+    )
 
     with _lock:
         _store[empresa_id] = {
@@ -53,6 +61,7 @@ def get_cuentas_cache_info(empresa=None):
                     0,
                     int(TTL_SECONDS - (time.time() - entrada["loaded_at"])),
                 ),
+                "plan_contable_ia": get_plan_contable_info(),
             }
 
         return {

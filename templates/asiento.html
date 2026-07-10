@@ -427,6 +427,36 @@
             color: #374151;
         }
 
+        .panel-ia-tipo {
+            margin-bottom: .75rem;
+        }
+
+        .panel-ia-tipo label {
+            display: flex;
+            flex-direction: column;
+            gap: .35rem;
+            font-size: .9rem;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .panel-ia-tipo select {
+            width: 100%;
+            max-width: 28rem;
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            padding: .55rem .7rem;
+            font-size: .95rem;
+            background: #fff;
+            color: #111827;
+        }
+
+        .panel-ia-tipo select:focus {
+            outline: none;
+            border-color: #0f5f68;
+            box-shadow: 0 0 0 3px rgba(15, 95, 104, .15);
+        }
+
         .btn-ia {
             background: #0f5f68;
             color: white;
@@ -1064,6 +1094,19 @@
                             <li><strong>Cobro:</strong> Cobro factura cliente ABC, 1.210 € en banco BBVA.</li>
                         </ul>
                     </details>
+                    <div class="panel-ia-tipo">
+                        <label for="tipoAsientoIA">
+                            Tipo de asiento
+                            <select id="tipoAsientoIA">
+                                <option value="">Detectar automáticamente</option>
+                                {% for tipo in tipos_asiento %}
+                                <option value="{{ tipo.id }}" data-ejemplo="{{ tipo.ejemplo }}">
+                                    {{ tipo.etiqueta }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                    </div>
                     <textarea id="descripcionIA" placeholder="Ejemplo: Factura compra proveedor García, base 500 € + IVA 21%"></textarea>
                     <div class="panel-ia-acciones">
                         <div class="panel-ia-fecha">
@@ -1084,7 +1127,7 @@
 
                 <div class="panel-csv">
                     <h3>Importar archivo</h3>
-                    <p>CSV, Excel, TSV o Norma 43. Si el fichero tiene columnas de asiento, se cargan las líneas; si no, puedes analizarlo con IA.</p>
+                    <p>CSV, Excel, TSV, Norma 43 o <strong>PDF</strong> de factura/ticket. Si el fichero tiene columnas de asiento, se cargan las líneas; si no, puedes analizarlo con IA (también PDF de compra, venta u otros documentos).</p>
                     <details class="panel-csv-formato">
                         <summary>Fichero encolumnado (CSV, Excel, TSV…)</summary>
                         <p>Separadores: <code>;</code>, <code>,</code>, tabulador o <code>|</code>.</p>
@@ -1109,8 +1152,17 @@
                             <li><strong>Analizar con IA</strong>: propone el asiento completo (banco + contrapartida).</li>
                         </ul>
                     </details>
+                    <details class="panel-csv-formato">
+                        <summary>PDF de factura o documento</summary>
+                        <p>Factura electrónica, ticket o albarán en PDF con texto seleccionable.</p>
+                        <ul>
+                            <li>Usa <strong>Analizar con IA</strong> (no «Cargar líneas»).</li>
+                            <li>Opcional: elige el tipo de asiento en el asistente IA.</li>
+                            <li>Puedes añadir indicaciones en el cuadro de texto de la IA.</li>
+                        </ul>
+                    </details>
                     <div class="panel-csv-archivo">
-                        <input type="file" id="archivoCSV" accept=".csv,.tsv,.txt,.dat,.xlsx,.xlsm,.xls,.n43,.c43,.csb,.43,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+                        <input type="file" id="archivoCSV" accept=".csv,.tsv,.txt,.dat,.xlsx,.xlsm,.xls,.n43,.c43,.csb,.43,.pdf,application/pdf,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
                     </div>
                     <label class="panel-csv-cuenta-banco" for="cuentaBancoCSV">
                         Cuenta banco 572 (opcional, para Norma 43)
@@ -1241,7 +1293,10 @@
         const estadoCuadre = document.getElementById("estadoCuadre");
         const empresaSelector = document.getElementById("empresaSelector");
         const descripcionIA = document.getElementById("descripcionIA");
+        const tipoAsientoIA = document.getElementById("tipoAsientoIA");
         const fechaIA = document.getElementById("fechaIA");
+        const PLACEHOLDER_DESCRIPCION_IA =
+            "Ejemplo: Factura compra proveedor García, base 500 € + IVA 21%";
         const btnSugerirIA = document.getElementById("btnSugerirIA");
         const btnDetenerIA = document.getElementById("btnDetenerIA");
         const btnDetenerCSVIA = document.getElementById("btnDetenerCSVIA");
@@ -1531,6 +1586,33 @@
             return "Descuadrado";
         }
 
+        function tipoAsientoSeleccionado() {
+            return tipoAsientoIA?.value.trim() || "";
+        }
+
+        function actualizarPlaceholderTipoAsiento() {
+            if (!descripcionIA) {
+                return;
+            }
+
+            const option = tipoAsientoIA?.selectedOptions?.[0];
+            const ejemplo = option?.dataset?.ejemplo || "";
+
+            descripcionIA.placeholder = ejemplo
+                ? `Ejemplo: ${ejemplo}`
+                : PLACEHOLDER_DESCRIPCION_IA;
+        }
+
+        function longitudMinimaDescripcionIA(descripcion) {
+            const esCuadre = /\b(cuadra|cuadrar|equilibra|equilibrar|compensa|compensar)\b/i.test(descripcion);
+
+            if (esCuadre) {
+                return 0;
+            }
+
+            return tipoAsientoSeleccionado() ? 5 : 10;
+        }
+
         function descripcionParaEjemplo() {
             const textoIA = descripcionIA?.value.trim() || "";
 
@@ -1653,11 +1735,23 @@
             actualizarTotales();
         }
 
+        function esArchivoPDF(archivo) {
+            return /\.pdf$/i.test(archivo?.name || "");
+        }
+
         async function importarCSV(modo) {
             const archivo = archivoCSV?.files?.[0];
 
             if (!archivo) {
                 mostrarMensaje("Selecciona un archivo para importar.", "error");
+                return;
+            }
+
+            if (esArchivoPDF(archivo) && modo !== "ia") {
+                mostrarMensaje(
+                    "Los PDF solo se analizan con IA. Pulsa «Analizar con IA».",
+                    "error"
+                );
                 return;
             }
 
@@ -1669,7 +1763,9 @@
                 boton.disabled = true;
             }
 
-            const etiquetaFormato = /\.(n43|c43|csb|43)$/i.test(archivo.name)
+            const etiquetaFormato = esArchivoPDF(archivo)
+                ? "PDF"
+                : /\.(n43|c43|csb|43)$/i.test(archivo.name)
                 ? "Norma 43"
                 : /\.(xlsx|xlsm|xls)$/i.test(archivo.name)
                     ? "Excel"
@@ -1702,6 +1798,10 @@
                         "fecha",
                         fechaAsientoParaApi(fechaIA?.value || fechaAsientoInput())
                     );
+
+                    if (tipoAsientoSeleccionado()) {
+                        formData.append("tipo_asiento", tipoAsientoSeleccionado());
+                    }
                 }
 
                 const response = await fetch("/api/asiento/importar-csv", {
@@ -1732,7 +1832,13 @@
                         iaExplicacion.hidden = false;
                     }
 
-                    const formato = data.formato === "norma43" ? "Norma 43" : "archivo";
+                    const formato = data.formato === "norma43"
+                        ? "Norma 43"
+                        : data.formato === "pdf"
+                            ? "PDF"
+                        : data.formato === "excel"
+                            ? "Excel"
+                            : "archivo";
                     const avisoParcial = filasDescartadas
                         ? ` ${filasDescartadas} fila(s) descartada(s); revisa el informe.`
                         : "";
@@ -1755,6 +1861,8 @@
                 if (csvInfo) {
                     const formato = data.formato === "norma43"
                         ? "Norma 43"
+                        : data.formato === "pdf"
+                            ? "PDF"
                         : data.formato === "excel"
                             ? "Excel"
                             : "CSV";
@@ -1797,9 +1905,9 @@
             }
 
             const descripcion = descripcionIA.value.trim();
-            const esCuadre = /\b(cuadra|cuadrar|equilibra|equilibrar|compensa|compensar)\b/i.test(descripcion);
+            const minimoDescripcion = longitudMinimaDescripcionIA(descripcion);
 
-            if (descripcion.length < 10 && !esCuadre) {
+            if (descripcion.length < minimoDescripcion) {
                 mostrarMensaje("Describe la operación con un poco más de detalle.", "error");
                 return;
             }
@@ -1820,14 +1928,21 @@
             }
 
             try {
+                const payload = {
+                    descripcion,
+                    fecha: fechaAsientoParaApi(fechaIA?.value || fechaAsientoInput()),
+                    lineas_actuales: leerLineas().filter(esLineaValida),
+                };
+                const tipoAsiento = tipoAsientoSeleccionado();
+
+                if (tipoAsiento) {
+                    payload.tipo_asiento = tipoAsiento;
+                }
+
                 const response = await fetch("/api/asiento/sugerir", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        descripcion,
-                        fecha: fechaAsientoParaApi(fechaIA?.value || fechaAsientoInput()),
-                        lineas_actuales: leerLineas().filter(esLineaValida),
-                    }),
+                    body: JSON.stringify(payload),
                     signal,
                 });
 
@@ -1997,6 +2112,21 @@
             const filasValidas = Number(diagnostico.filas_validas ?? (data.lineas || []).length ?? 0);
             const filasDescartadas = Number(diagnostico.filas_descartadas ?? 0);
             const cuentaBanco = data.cuenta_banco || diagnostico.cuenta_banco || "";
+            const datosPdf = diagnostico.datos_detectados || {};
+            const tipoPdf = diagnostico.tipo_sugerido || "";
+
+            const pdfHtml = data.formato === "pdf" || diagnostico.formato === "pdf"
+                ? `
+                    <h4>Documento PDF</h4>
+                    <div class="csv-alertas">
+                        <div class="csv-alerta">Páginas: ${escapeHtml(String(diagnostico.num_paginas ?? "-"))}</div>
+                        <div class="csv-alerta">Caracteres extraídos: ${escapeHtml(String(diagnostico.caracteres_extraidos ?? "-"))}</div>
+                        ${tipoPdf ? `<div class="csv-alerta">Tipo sugerido: ${escapeHtml(tipoPdf)}</div>` : ""}
+                        ${datosPdf.base_imponible ? `<div class="csv-alerta">Base detectada: ${escapeHtml(String(datosPdf.base_imponible))} €</div>` : ""}
+                        ${datosPdf.total ? `<div class="csv-alerta">Total detectado: ${escapeHtml(String(datosPdf.total))} €</div>` : ""}
+                    </div>
+                `
+                : "";
 
             const columnasHtml = columnas.length
                 ? `<div class="csv-columnas">${columnas.map(columna => `
@@ -2080,6 +2210,7 @@
                     <div class="csv-diagnostico-dato"><span>Descartadas</span>${filasDescartadas}</div>
                 </div>
                 ${columnasHtml}
+                ${pdfHtml}
                 ${cuentaBancoHtml}
                 ${sugerenciasHtml}
                 ${cuentasHtml}
@@ -2628,7 +2759,7 @@
                     </select>
                 </td>
                 <td data-label="Concepto">
-                    <input type="text" class="campo-concepto" placeholder="Descripción del apunte">
+                    <input type="text" class="campo-concepto" placeholder="Descripción del apunte" maxlength="50" title="Máximo 50 caracteres (límite AS/400)">
                 </td>
                 <td data-label="Acciones" class="col-acciones">
                     <button type="button" class="btn-eliminar">Quitar</button>
@@ -2963,6 +3094,10 @@
 
         actualizarInfoEjemplosIA(numEjemplosIAInicial);
 
+        if (tipoAsientoIA) {
+            tipoAsientoIA.addEventListener("change", actualizarPlaceholderTipoAsiento);
+        }
+
         if (fechaIA) {
             fechaIA.value = fechaAsientoInput();
         }
@@ -3010,8 +3145,14 @@
                     return;
                 }
 
-                csvInfo.textContent = `Archivo seleccionado: ${archivo.name}`;
+                csvInfo.textContent = esArchivoPDF(archivo)
+                    ? `PDF seleccionado: ${archivo.name}. Usa «Analizar con IA».`
+                    : `Archivo seleccionado: ${archivo.name}`;
                 csvInfo.hidden = false;
+
+                if (btnImportarCSV) {
+                    btnImportarCSV.disabled = esArchivoPDF(archivo);
+                }
             });
         }
 
