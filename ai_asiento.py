@@ -449,9 +449,27 @@ def _parsear_importe_locale(texto):
     return round(importe, 2) if importe > 0 else None
 
 
+def _nombre_tercero_valido(nombre):
+    nombre = str(nombre or "").strip(" .,-")
+
+    if len(nombre) < 3 or nombre in TERCERO_STOPWORDS:
+        return False
+
+    if re.match(r"^[\d.,]+\b", nombre):
+        return False
+
+    if re.fullmatch(r"[\d.,\s]+(?:euros?|€)?", nombre):
+        return False
+
+    return True
+
+
 def _extraer_nombre_tercero(descripcion):
     texto = _texto_para_analisis(descripcion)
     patrones = (
+        r"^(.+?)\s+me\s+ha\s+pagado\b",
+        r"^(.+?)\s+nos\s+ha\s+pagado\b",
+        r"^(.+?)\s+me\s+pago\b",
         r"factura\s+compra\s+proveedor\s+(.+?)\s*,\s*base",
         r"factura\s+venta\s+cliente\s+(.+?)\s*,\s*base",
         r"factura\s+compra\s+(?:proveedor\s+)?(.+?)\s*,\s*base",
@@ -476,7 +494,7 @@ def _extraer_nombre_tercero(descripcion):
 
         nombre = coincidencia.group(1).strip(" .,-")
 
-        if len(nombre) >= 3 and nombre not in TERCERO_STOPWORDS:
+        if _nombre_tercero_valido(nombre):
             return nombre
 
     return ""
@@ -838,24 +856,32 @@ def _buscar_cuenta_gasto_compra(cuentas, descripcion):
     return None
 
 
-def _intentar_asiento_factura_rapida(descripcion, cuentas, fecha):
+def _intentar_asiento_factura_rapida(descripcion, cuentas, fecha, tipos_operacion=None):
     importes = _calcular_importes_factura(descripcion)
 
     if not importes:
         return None
 
-    tipos = _detectar_tipo_operacion(descripcion)
-    es_venta = "factura_venta" in tipos
-    es_compra = "factura_compra" in tipos
+    tipos_resueltos = list(tipos_operacion or [])
+    tipos_detectados = _detectar_tipo_operacion(descripcion)
+    es_venta = "factura_venta" in tipos_resueltos or "factura_venta" in tipos_detectados
+    es_compra = "factura_compra" in tipos_resueltos or "factura_compra" in tipos_detectados
 
     if es_venta and es_compra:
+        preferido = tipos_resueltos[0] if tipos_resueltos else None
         texto = _texto_para_analisis(descripcion)
 
-        if re.search(r"factura\s+a\s+", texto):
+        if preferido == "factura_venta":
+            es_compra = False
+        elif preferido == "factura_compra":
+            es_venta = False
+        elif re.search(r"factura\s+a\s+", texto):
             es_compra = False
         elif re.search(r"factura\s+de\s+(?:la\s+)?compra", texto):
             es_venta = False
         elif re.search(r"factura\s+de\s+(?:venta|cliente)", texto):
+            es_compra = False
+        elif re.search(r"\bme\s+ha\s+pagado\b|\bnos\s+ha\s+pagado\b", texto):
             es_compra = False
         else:
             return None
@@ -1070,6 +1096,10 @@ PATRONES_ANADIR_DEBE = (
         re.IGNORECASE,
     ),
     re.compile(
+        rf"{_VERBO_ANADIR}\s+(?:a|para)\s+(.+?)\s+{_IMPORTE}\s+{_LADO_DEBE}\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
         rf"{_VERBO_ANADIR}\s+{_IMPORTE}\s+{_LADO_DEBE}\s+(?:a|para|de)\s+(.+)",
         re.IGNORECASE,
     ),
@@ -1085,14 +1115,30 @@ PATRONES_ANADIR_HABER = (
         re.IGNORECASE,
     ),
     re.compile(
+        rf"{_VERBO_ANADIR}\s+(?:a|para)\s+(.+?)\s+{_IMPORTE}\s+{_LADO_HABER}\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
         rf"{_VERBO_ANADIR}\s+{_IMPORTE}\s+{_LADO_HABER}\s+(?:a|para|de)\s+(.+)",
         re.IGNORECASE,
     ),
 )
 
 
+def _es_solicitud_anadir_linea(descripcion):
+    texto = _texto_para_analisis(descripcion)
+
+    return any(
+        patron.search(texto)
+        for patron in PATRONES_ANADIR_DEBE + PATRONES_ANADIR_HABER
+    )
+
+
 def _detectar_modo_edicion(descripcion, lineas_actuales):
     if not lineas_actuales:
+        if _es_solicitud_anadir_linea(descripcion):
+            return "añadir"
+
         return "reemplazar"
 
     texto = _texto_para_analisis(descripcion)
@@ -3694,8 +3740,16 @@ def _detectar_tipo_operacion(descripcion):
             "factura_compra" not in detectados
             and re.search(r"factura\s+de\s+", texto)
             and not re.search(r"factura\s+de\s+(?:venta|cliente)", texto)
+            and not re.search(r"factura\s+de\s+[\d.,]+", texto)
         ):
             detectados.insert(0, "factura_compra")
+
+        if (
+            "factura_venta" not in detectados
+            and re.search(r"\bme\s+ha\s+pagado\b|\bnos\s+ha\s+pagado\b", texto)
+            and "factura" in texto
+        ):
+            detectados.insert(0, "factura_venta")
 
         if (
             "factura_venta" not in detectados
@@ -4516,6 +4570,7 @@ def sugerir_asiento_contable(
             descripcion,
             cuentas,
             fecha_asiento,
+            tipos_operacion=tipos_operacion,
         )
 
         if not rapida_factura:

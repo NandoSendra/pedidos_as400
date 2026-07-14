@@ -52,6 +52,20 @@ class TiposAsientoTests(unittest.TestCase):
             10,
         )
 
+    def test_anadir_debe_a_nando_sendra(self):
+        resultado = _intentar_anadir_linea_rapida(
+            "Añade a Nando sendra 100 euros al debe",
+            [],
+            CUENTAS_NANDO,
+            "20260710",
+        )
+
+        self.assertIsNotNone(resultado)
+        self.assertEqual(resultado["modo"], "añadir")
+        self.assertEqual(resultado["lineas"][0]["debe_haber"], "D")
+        self.assertEqual(resultado["lineas"][0]["cuenta"], "4300009999")
+        self.assertEqual(resultado["lineas"][0]["importe"], 100.0)
+
     def test_anadir_haber_a_nando_sendra(self):
         lineas_actuales = [
             {
